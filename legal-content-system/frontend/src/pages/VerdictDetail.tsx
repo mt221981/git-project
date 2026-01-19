@@ -184,19 +184,19 @@ export default function VerdictDetail() {
     },
   });
 
-  // Simulate progress during processing
+  // Update progress from backend (real progress tracking)
   useEffect(() => {
-    if (!isProcessing || operationProgress >= 90) return;
+    if (!isProcessing) return;
 
-    const interval = setInterval(() => {
-      setOperationProgress((prev) => {
-        if (prev >= 90) return prev;
-        return prev + Math.random() * 5;
-      });
-    }, 2000);
+    // Use real progress from backend
+    if (verdict?.processing_progress !== undefined && verdict?.processing_progress !== null) {
+      setOperationProgress(verdict.processing_progress);
+    }
 
-    return () => clearInterval(interval);
-  }, [isProcessing, operationProgress]);
+    if (verdict?.processing_message) {
+      setOperationMessage(verdict.processing_message);
+    }
+  }, [verdict?.processing_progress, verdict?.processing_message, isProcessing]);
 
   if (isLoading) {
     return (
@@ -310,7 +310,25 @@ export default function VerdictDetail() {
         <div className="card">
           <h2 className="text-xl font-bold mb-4">פעולות</h2>
           <div className="flex flex-wrap gap-4">
-            {verdict.status === 'extracted' && (
+            {/* Main action button - Full automatic processing */}
+            {verdict.status === 'extracted' && verdict.original_text && (
+              <button
+                onClick={() => reprocessMutation.mutate()}
+                disabled={reprocessMutation.isPending || isProcessing}
+                className="btn bg-green-600 hover:bg-green-700 text-white text-lg px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {reprocessMutation.isPending ? (
+                  <span className="flex items-center gap-2">
+                    <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
+                    מעבד אוטומטית...
+                  </span>
+                ) : (
+                  'עבד אוטומטית (אנונימיזציה + ניתוח + יצירת מאמר)'
+                )}
+              </button>
+            )}
+
+            {verdict.status === 'extracted' && !verdict.original_text && (
               <button
                 onClick={() => anonymizeMutation.mutate()}
                 disabled={anonymizeMutation.isPending || isProcessing}

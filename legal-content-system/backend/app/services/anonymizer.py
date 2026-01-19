@@ -2,6 +2,7 @@
 
 import json
 from typing import Dict, Any, List
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from anthropic import Anthropic
 from app.config import settings
 from app.utils.json_repair import safe_parse_json
@@ -185,47 +186,65 @@ class Anonymizer:
         raise AnonymizationError(f"Anonymization failed after {max_retries + 1} attempts: {str(last_error)}")
 
     def _anonymize_chunked(self, text: str, progress_callback=None) -> Dict[str, Any]:
-        """Anonymize large text by processing in chunks."""
+        """Anonymize large text by processing chunks in parallel."""
         chunks = self._split_into_chunks(text)
         total_chunks = len(chunks)
 
-        print(f"[Anonymizer] Processing {total_chunks} chunks")
+        print(f"[Anonymizer] Processing {total_chunks} chunks in parallel")
 
         all_reports = []
-        anonymized_parts = []
+        anonymized_parts = [None] * total_chunks  # Pre-allocate to maintain order
         highest_risk = "low"
         needs_review = False
         review_notes = []
 
-        for i, chunk in enumerate(chunks):
-            if progress_callback:
-                percent = int((i / total_chunks) * 90) + 5
-                progress_callback(percent, f"מעבד חלק {i+1} מתוך {total_chunks}...")
+        # Process chunks in parallel (max 3 concurrent to avoid rate limits)
+        max_workers = min(3, total_chunks)
 
-            print(f"[Anonymizer] Processing chunk {i+1}/{total_chunks} ({len(chunk)} chars)")
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all chunks for processing
+            future_to_chunk = {
+                executor.submit(self._anonymize_single, chunk): i
+                for i, chunk in enumerate(chunks)
+            }
 
-            try:
-                result = self._anonymize_single(chunk)
+            completed_count = 0
 
-                anonymized_parts.append(result["anonymized_text"])
-                all_reports.extend(result.get("report", []))
+            # Process completed chunks as they finish
+            for future in as_completed(future_to_chunk):
+                chunk_idx = future_to_chunk[future]
+                completed_count += 1
 
-                # Update risk level (take highest)
-                chunk_risk = result.get("risk_level", "low")
-                if chunk_risk == "high" or (chunk_risk == "medium" and highest_risk == "low"):
-                    highest_risk = chunk_risk
+                # Update progress
+                if progress_callback:
+                    percent = int((completed_count / total_chunks) * 90) + 5
+                    progress_callback(percent, f"הושלמו {completed_count}/{total_chunks} חלקים...")
 
-                if result.get("requires_review"):
+                print(f"[Anonymizer] Completed chunk {chunk_idx+1}/{total_chunks}")
+
+                try:
+                    result = future.result()
+
+                    # Store in correct position to maintain order
+                    anonymized_parts[chunk_idx] = result["anonymized_text"]
+                    all_reports.extend(result.get("report", []))
+
+                    # Update risk level (take highest)
+                    chunk_risk = result.get("risk_level", "low")
+                    if chunk_risk == "high" or (chunk_risk == "medium" and highest_risk == "low"):
+                        highest_risk = chunk_risk
+
+                    if result.get("requires_review"):
+                        needs_review = True
+                        if result.get("review_notes"):
+                            review_notes.append(f"חלק {chunk_idx+1}: {result['review_notes']}")
+
+                except Exception as e:
+                    print(f"[Anonymizer] Error in chunk {chunk_idx+1}: {str(e)}")
+                    # Keep original text for failed chunks
+                    anonymized_parts[chunk_idx] = chunks[chunk_idx]
                     needs_review = True
-                    if result.get("review_notes"):
-                        review_notes.append(f"חלק {i+1}: {result['review_notes']}")
-
-            except Exception as e:
-                print(f"[Anonymizer] Error in chunk {i+1}: {str(e)}")
-                # Keep original text for failed chunks
-                anonymized_parts.append(chunk)
-                needs_review = True
-                review_notes.append(f"חלק {i+1}: שגיאה בעיבוד - {str(e)}")
+                    review_notes.append(f"חלק {chunk_idx+1}: שגיאה בעיבוד - {str(e)}")
 
         if progress_callback:
             progress_callback(100, "הושלם")

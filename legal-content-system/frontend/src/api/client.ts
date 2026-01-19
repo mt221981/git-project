@@ -81,18 +81,25 @@ export const wordpressApi = {
       params: siteId ? { site_id: siteId } : {},
     }),
 
-  // Queue management
-  scheduleQueue: (data: {
+  // Queue management - DISABLED: Backend endpoints not implemented yet
+  scheduleQueue: (_data: {
     site_id: number;
     articles_per_day: number;
     min_score?: number;
-  }) => apiClient.post('/wordpress/queue/schedule', data),
-  getUnpublishedArticles: (params: { min_score?: number; limit?: number }) =>
-    apiClient.get('/wordpress/articles/unpublished', { params }),
+  }) => {
+    console.warn('scheduleQueue endpoint not implemented in backend');
+    return Promise.reject(new Error('Queue scheduling not available - endpoint not implemented'));
+  },
+  getUnpublishedArticles: (_params: { min_score?: number; limit?: number }) => {
+    console.warn('getUnpublishedArticles endpoint not implemented in backend');
+    return Promise.reject(new Error('Endpoint not implemented'));
+  },
 
-  // Status sync
-  syncArticleStatus: (articleId: number) =>
-    apiClient.post(`/wordpress/articles/${articleId}/sync`),
+  // Status sync - DISABLED: Backend endpoint not implemented yet
+  syncArticleStatus: (_articleId: number) => {
+    console.warn('syncArticleStatus endpoint not implemented in backend');
+    return Promise.reject(new Error('Endpoint not implemented'));
+  },
 };
 
 export default apiClient;

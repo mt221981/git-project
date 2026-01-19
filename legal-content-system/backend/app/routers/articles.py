@@ -146,6 +146,19 @@ async def list_articles(
     )
 
 
+def _normalize_quality_issues(quality_issues):
+    """Convert old string format to new dict format for backward compatibility."""
+    if quality_issues is None:
+        return None
+    result = []
+    for item in quality_issues:
+        if isinstance(item, str):
+            result.append({"type": "warning", "message": item})
+        elif isinstance(item, dict):
+            result.append(item)
+    return result
+
+
 @router.get("/{article_id}", response_model=ArticleResponse)
 async def get_article(
     article_id: int,
@@ -161,6 +174,9 @@ async def get_article(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Article with ID {article_id} not found"
         )
+
+    # Normalize quality_issues for backward compatibility
+    article.quality_issues = _normalize_quality_issues(article.quality_issues)
 
     return ArticleResponse.model_validate(article)
 
@@ -182,6 +198,9 @@ async def get_article_by_verdict(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No article found for verdict ID {verdict_id}"
         )
+
+    # Normalize quality_issues for backward compatibility
+    article.quality_issues = _normalize_quality_issues(article.quality_issues)
 
     return ArticleResponse.model_validate(article)
 

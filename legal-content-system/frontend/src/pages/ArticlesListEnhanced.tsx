@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { articleApi, wordpressApi } from '../api/client';
+import { articleApi } from '../api/client';
 import type { Article, PublishStatus } from '../types';
 import { FiCheckSquare, FiSquare, FiUpload, FiFilter } from 'react-icons/fi';
 import BulkPublishModal from '../components/BulkPublishModal';

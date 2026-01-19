@@ -113,8 +113,28 @@ class AnonymizationService:
             # Use cleaned text if available, otherwise use original
             text_to_anonymize = verdict.cleaned_text or verdict.original_text
 
-            # Perform anonymization using new Anonymizer service
-            result = self.anonymize_text(text_to_anonymize)
+            # Create progress callback to update DB
+            def _update_progress(progress: int, message: str):
+                """Update progress in database."""
+                verdict.processing_progress = progress
+                verdict.processing_message = message
+                self.db.commit()
+
+            # Perform anonymization using new Anonymizer service with progress tracking
+            result = self.anonymizer.anonymize(
+                text_to_anonymize,
+                progress_callback=_update_progress
+            )
+
+            # Transform result to match expected format
+            result = {
+                "anonymized_text": result["anonymized_text"],
+                "changes": result["report"],
+                "overall_risk_assessment": result["risk_level"],
+                "risk_explanation": f"Risk level: {result['risk_level']}",
+                "requires_manual_review": result["requires_review"],
+                "review_notes": result.get("review_notes", "")
+            }
 
             # Map risk level string to enum
             risk_map = {

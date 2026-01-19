@@ -7,7 +7,7 @@ export default function VerdictsList() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const statusFromUrl = searchParams.get('status');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, _setSearchQuery] = useState('');
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['verdicts', statusFromUrl],

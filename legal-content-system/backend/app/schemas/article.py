@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, Field, ConfigDict, field_validator
+from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 from app.models.article import PublishStatus
 
@@ -77,6 +77,25 @@ class ArticleResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator('quality_issues', mode='before')
+    @classmethod
+    def convert_quality_issues(cls, v):
+        """Convert old string format to new dict format for backward compatibility."""
+        if v is None:
+            return None
+        result = []
+        for item in v:
+            if isinstance(item, str):
+                # Old format: just a string message
+                result.append({"type": "warning", "message": item})
+            elif isinstance(item, dict):
+                # New format: already a dict
+                result.append(item)
+            else:
+                # Unknown format, skip
+                continue
+        return result
 
 
 class ArticleListResponse(BaseModel):

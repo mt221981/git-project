@@ -100,6 +100,10 @@ class VerdictResponse(BaseModel):
     requires_manual_review: bool
     review_notes: Optional[str] = None
 
+    # Processing progress tracking
+    processing_progress: Optional[int] = None
+    processing_message: Optional[str] = None
+
     created_at: datetime
     updated_at: datetime
 

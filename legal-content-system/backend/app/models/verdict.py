@@ -83,6 +83,10 @@ class Verdict(Base):
     requires_manual_review = Column(Boolean, default=False)
     review_notes = Column(Text)
 
+    # Processing progress tracking
+    processing_progress = Column(Integer, default=0)  # 0-100
+    processing_message = Column(String(200), nullable=True)
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

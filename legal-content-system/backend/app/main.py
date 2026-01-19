@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from app.config import settings
 from app.database import init_db
-from app.routers import verdicts, articles, wordpress, auth
+from app.routers import verdicts, articles, wordpress, auth, agent_workflows
 
 
 @asynccontextmanager
@@ -63,6 +63,7 @@ app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(verdicts.router, prefix="/api/v1/verdicts", tags=["verdicts"])
 app.include_router(articles.router, prefix="/api/v1/articles", tags=["articles"])
 app.include_router(wordpress.router, prefix="/api/v1/wordpress", tags=["wordpress"])
+app.include_router(agent_workflows.router, prefix="/api/v1", tags=["agent-workflows"])
 
 
 if __name__ == "__main__":

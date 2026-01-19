@@ -325,11 +325,17 @@ function QueueManagement() {
     queryFn: () => wordpressApi.listSites().then((res) => res.data),
   });
 
+  // TEMPORARILY DISABLED: Queue scheduling endpoint not implemented in backend yet
   const queueMutation = useMutation({
-    mutationFn: (config: typeof queueConfig) => wordpressApi.scheduleQueue(config),
-    onSuccess: (response) => {
-      alert(`תור פרסום נוצר: ${response.data.total_queued} מאמרים לאורך ${response.data.estimated_days} ימים`);
+    mutationFn: async (_config: typeof queueConfig) => {
+      console.warn('Queue scheduling not implemented - backend endpoint missing');
+      throw new Error('תור פרסום אוטומטי זמין בקרוב - נא להשתמש בפרסום ידני בינתיים');
+    },
+    onSuccess: () => {
       setShowQueueModal(false);
+    },
+    onError: (error: any) => {
+      alert(error.message || 'שגיאה ביצירת תור פרסום');
     },
   });
 

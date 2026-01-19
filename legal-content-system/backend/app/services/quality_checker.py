@@ -353,9 +353,20 @@ class QualityChecker:
             severity="info"
         ))
 
-        # Slug check
+        # Slug check - for Hebrew content, just verify slug exists and is non-empty
+        # For English focus keywords, verify keyword is in slug
         slug = article.get("slug", "")
-        slug_passed = bool(slug) and focus_keyword.lower().replace(" ", "-") in slug.lower() if focus_keyword else bool(slug)
+        if focus_keyword:
+            # Check if focus keyword contains Hebrew characters
+            has_hebrew = any('\u0590' <= char <= '\u05FF' for char in focus_keyword)
+            if has_hebrew:
+                # For Hebrew keywords, just verify slug exists, is non-empty, and uses Latin chars
+                slug_passed = bool(slug) and len(slug) >= 5 and slug.replace("-", "").isascii()
+            else:
+                # For English keywords, verify keyword is in slug
+                slug_passed = focus_keyword.lower().replace(" ", "-") in slug.lower()
+        else:
+            slug_passed = bool(slug)
         checks.append(QualityCheck(
             name="slug_optimization",
             passed=slug_passed,

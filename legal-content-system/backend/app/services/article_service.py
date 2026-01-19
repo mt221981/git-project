@@ -162,7 +162,7 @@ class ArticleService:
         prompt = SCHEMA_GENERATION_PROMPT.format(article_data=article_str)
 
         try:
-            response = self.client.create_structured_message(
+            response = self.generator.client.create_structured_message(
                 prompt=prompt,
                 max_tokens=2000
             )
@@ -268,8 +268,13 @@ class ArticleService:
             word_count = self.calculate_word_count(article_content["content_html"])
             reading_time = self.calculate_reading_time(word_count)
 
-            # Generate slug from title
-            slug = slugify(article_content["title"], max_length=200)
+            # Generate slug from title with uniqueness check
+            base_slug = slugify(article_content["title"], max_length=180)
+            slug = base_slug
+            counter = 1
+            while self.db.query(Article).filter(Article.slug == slug).first():
+                slug = f"{base_slug}-{counter}"
+                counter += 1
 
             # Score article
             scores = self.score_article(article_content)

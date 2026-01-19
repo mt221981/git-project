@@ -104,7 +104,8 @@ class AnthropicClient:
         """
         Estimate token count for text.
 
-        This is a rough estimate (4 chars per token average).
+        This is a rough estimate that accounts for Hebrew and other non-ASCII
+        characters which typically use more tokens per character.
         For exact count, use the official tokenizer.
 
         Args:
@@ -113,8 +114,21 @@ class AnthropicClient:
         Returns:
             Estimated token count
         """
-        # Rough estimate: ~4 characters per token on average
-        return len(text) // 4
+        if not text:
+            return 0
+
+        # Count Hebrew characters (Unicode range: \u0590-\u05FF)
+        hebrew_chars = sum(1 for c in text if '\u0590' <= c <= '\u05FF')
+        # Count other non-ASCII characters
+        other_non_ascii = sum(1 for c in text if ord(c) > 127 and not ('\u0590' <= c <= '\u05FF'))
+        ascii_chars = len(text) - hebrew_chars - other_non_ascii
+
+        # Hebrew typically uses ~2-3 tokens per word, roughly 1 token per 2 chars
+        # ASCII uses ~4 chars per token average
+        # Other non-ASCII uses ~2 chars per token
+        estimated = (ascii_chars // 4) + (hebrew_chars // 2) + (other_non_ascii // 2)
+
+        return max(1, estimated)
 
 
 def get_anthropic_client() -> AnthropicClient:

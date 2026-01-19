@@ -30,8 +30,9 @@ export default function Dashboard() {
       const response = await verdictApi.getStats();
       return response.data;
     },
-    staleTime: 30000,
-    refetchOnWindowFocus: false,
+    staleTime: 10000,
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
   });
 
   const { data: articleStats } = useQuery({
@@ -40,8 +41,9 @@ export default function Dashboard() {
       const response = await articleApi.getStats();
       return response.data;
     },
-    staleTime: 30000,
-    refetchOnWindowFocus: false,
+    staleTime: 10000,
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
   });
 
   const { data: verdictsList } = useQuery({
@@ -50,8 +52,9 @@ export default function Dashboard() {
       const response = await verdictApi.list({ limit: 5 });
       return response.data;
     },
-    staleTime: 30000,
-    refetchOnWindowFocus: false,
+    staleTime: 10000,
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
   });
 
   // Calculate stats from API data

@@ -410,7 +410,7 @@ async def reprocess_verdict(
             detail="Verdict must have been extracted before reprocessing"
         )
 
-    # Reset verdict to EXTRACTED status
+    # Reset verdict to EXTRACTED status (clears downstream data)
     verdict = service.reset_verdict(verdict_id, VerdictStatus.EXTRACTED)
 
     if not verdict:
@@ -418,6 +418,9 @@ async def reprocess_verdict(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to reset verdict"
         )
+
+    # Set status to ANONYMIZING so frontend can track progress
+    verdict = service.update_verdict_status(verdict_id, VerdictStatus.ANONYMIZING)
 
     # Start full pipeline in background
     background_tasks.add_task(run_full_pipeline_background, verdict_id)

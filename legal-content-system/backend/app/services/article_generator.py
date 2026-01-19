@@ -196,14 +196,52 @@ class ArticleGenerator:
 
     def _build_prompt(self, verdict_data: Dict[str, Any]) -> str:
         """Build the user prompt for Claude."""
+        # Extract SEO-critical fields for emphasis
+        focus_keyword = verdict_data.get("focus_keyword", "")
+        secondary_keywords = verdict_data.get("secondary_keywords", [])
+
         # Format verdict data nicely
         verdict_json = json.dumps(verdict_data, ensure_ascii=False, indent=2)
+
+        # Build SEO emphasis section
+        seo_emphasis = ""
+        if focus_keyword:
+            # Generate slug suggestion from focus keyword
+            slug_suggestion = focus_keyword.replace(" ", "-").replace("'", "").replace('"', "")
+
+            seo_emphasis = f"""
+## קריטי ביותר - SEO (ציון יעד: 90+):
+
+**מילת המפתח הראשית שנקבעה: "{focus_keyword}"**
+
+### חובות מוחלטות - לא לפספס!
+
+1. **כותרת H1**: חייבת לכלול "{focus_keyword}" (מקסימום 60 תווים)
+
+2. **Meta description**: חייבת לכלול "{focus_keyword}" (120-160 תווים)
+
+3. **פסקה ראשונה**: חייבת לכלול "{focus_keyword}" בתוך 100 המילים הראשונות
+
+4. **Slug**: חייב לכלול את מילת המפתח באותיות לטיניות!
+   - דוגמה נכונה: "{slug_suggestion}"
+   - השתמש בתעתיק לטיני של מילת המפתח
+
+5. **צפיפות מילות מפתח - קריטי!**:
+   - מילת המפתח "{focus_keyword}" חייבת להופיע **לפחות 15-20 פעמים** במאמר של 2000 מילים
+   - זה יתן צפיפות של 1.0%-1.5% שהיא הצפיפות האופטימלית
+   - שלב את מילת המפתח באופן טבעי בכותרות H2, בפסקאות, ובתשובות ל-FAQ
+
+6. **מילות מפתח משניות** - כל אחת חייבת להופיע **לפחות 3 פעמים**:
+   {', '.join(secondary_keywords) if secondary_keywords else 'לא סופקו'}
+
+"""
 
         return f"""צור מאמר משפטי SEO-אופטימלי מקצועי על בסיס נתוני פסק הדין הבאים.
 
 **חשוב מאוד**:
 1. **אורך: 1800-2200 מילים בדיוק! זו דרישה קריטית!**
 2. החזר JSON תקין בלבד!
+{seo_emphasis}
 
 ## נתוני פסק הדין:
 ```json
@@ -467,13 +505,20 @@ class ArticleGenerator:
             print(f"  E-E-A-T: {report.eeat_score}/100")
             print(f"  Overall: {report.overall_score}/100")
 
+            # Convert string issues to dict format for Pydantic schema compatibility
+            quality_issues = []
+            for issue in report.critical_issues:
+                quality_issues.append({"type": "critical", "message": issue})
+            for issue in report.warnings:
+                quality_issues.append({"type": "warning", "message": issue})
+
             return {
                 "content_score": report.content_score,
                 "seo_score": report.seo_score,
                 "readability_score": report.readability_score,
                 "eeat_score": report.eeat_score,
                 "overall_score": report.overall_score,
-                "quality_issues": report.critical_issues + report.warnings
+                "quality_issues": quality_issues
             }
 
         except Exception as e:
@@ -489,5 +534,5 @@ class ArticleGenerator:
                 "readability_score": 70,
                 "eeat_score": 70,
                 "overall_score": 70,
-                "quality_issues": [f"Failed to calculate scores: {str(e)}"]
+                "quality_issues": [{"type": "error", "message": f"Failed to calculate scores: {str(e)}"}]
             }
