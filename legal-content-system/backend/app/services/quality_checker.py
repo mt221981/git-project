@@ -136,9 +136,9 @@ class QualityChecker:
         warnings = [c.message for c in checks if c.severity == "warning" and not c.passed]
         suggestions = [c.message for c in checks if c.severity == "info" and not c.passed]
 
-        # Ready to publish if no critical issues and score >= 70
+        # Ready to publish if no critical issues and score >= 95 (updated quality standard)
         all_passed = all(c.passed for c in checks if c.severity == "error")
-        ready_to_publish = all_passed and overall_score >= 70
+        ready_to_publish = all_passed and overall_score >= 95
 
         return QualityReport(
             checks=checks,

@@ -113,10 +113,22 @@ class AnonymizationService:
             # Use cleaned text if available, otherwise use original
             text_to_anonymize = verdict.cleaned_text or verdict.original_text
 
+            # Set initial progress
+            verdict.processing_progress = 10
+            verdict.processing_message = "מתחיל תהליך אנונימיזציה..."
+            self.db.commit()
+
             # Create progress callback to update DB
-            def _update_progress(progress: int, message: str):
-                """Update progress in database."""
-                verdict.processing_progress = progress
+            # Maps anonymizer's 0-100% progress to our 10-35% range
+            def _update_progress(anonymizer_progress: int, message: str):
+                """
+                Update progress in database.
+
+                Maps anonymizer progress (0-100%) to verdict progress (10-35%).
+                Formula: verdict_progress = 10 + (anonymizer_progress * 0.25)
+                """
+                mapped_progress = 10 + int(anonymizer_progress * 0.25)
+                verdict.processing_progress = min(mapped_progress, 35)
                 verdict.processing_message = message
                 self.db.commit()
 
@@ -164,14 +176,23 @@ class AnonymizationService:
                 verdict.review_notes = result["review_notes"]
 
             verdict.status = VerdictStatus.ANONYMIZED
+            verdict.processing_progress = 35
+            verdict.processing_message = "אנונימיזציה הושלמה בהצלחה"
             self.db.commit()
             self.db.refresh(verdict)
 
             return verdict
 
         except Exception as e:
+            # Log the full error for debugging
+            import traceback
+            print(f"[AnonymizationService] ERROR anonymizing verdict {verdict_id}:")
+            print(traceback.format_exc())
+
             # Revert status to previous state on error
-            verdict.status = VerdictStatus.EXTRACTED
+            verdict.status = VerdictStatus.FAILED
+            verdict.processing_progress = 10
+            verdict.processing_message = f"שגיאה באנונימיזציה: {str(e)}"
             verdict.review_notes = f"Anonymization failed: {str(e)}"
             self.db.commit()
             raise AnonymizationError(f"Failed to anonymize verdict: {str(e)}")

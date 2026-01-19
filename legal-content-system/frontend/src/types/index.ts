@@ -145,6 +145,8 @@ export interface Verdict {
   file_path: string;
   file_size: number;
   status: VerdictStatus;
+  processing_progress?: number;
+  processing_message?: string;
   original_text?: string;
   cleaned_text?: string;
   anonymized_text?: string;
@@ -176,9 +178,13 @@ export type VerdictStatus =
   | 'uploaded'
   | 'processing'
   | 'cleaned'
+  | 'anonymizing'
   | 'anonymized'
+  | 'analyzing'
   | 'analyzed'
+  | 'article_creating'
   | 'article_created'
+  | 'published'
   | 'failed';
 
 export type CourtLevel = 'supreme' | 'district' | 'magistrate' | 'other';

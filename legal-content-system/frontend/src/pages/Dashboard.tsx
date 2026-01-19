@@ -12,7 +12,9 @@ interface Stats {
     extracted: number;
     anonymizing: number;
     anonymized: number;
+    analyzing: number;
     analyzed: number;
+    article_creating: number;
     article_created: number;
   };
   quality_scores: {
@@ -70,7 +72,9 @@ export default function Dashboard() {
       extracted: verdictStats?.by_status?.extracted || 0,
       anonymizing: verdictStats?.by_status?.anonymizing || 0,
       anonymized: verdictStats?.by_status?.anonymized || 0,
+      analyzing: verdictStats?.by_status?.analyzing || 0,
       analyzed: verdictStats?.by_status?.analyzed || 0,
+      article_creating: verdictStats?.by_status?.article_creating || 0,
       article_created: verdictStats?.by_status?.article_created || 0,
     },
     quality_scores: {
@@ -252,6 +256,21 @@ export default function Dashboard() {
               </button>
 
               <button
+                onClick={() => navigate('/verdicts?status=analyzing')}
+                className="flex items-center gap-3 rounded-lg border border-[#dbe2e6] dark:border-[#2d3a41] p-3 bg-background-light dark:bg-background-dark/50 hover:border-primary hover:shadow-md transition-all cursor-pointer text-right"
+              >
+                <div className="bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded-lg text-yellow-600 dark:text-yellow-400 shrink-0">
+                  <span className="material-symbols-outlined text-xl animate-pulse">psychology</span>
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-[#111618] dark:text-white text-sm font-bold truncate">מנתח...</h3>
+                  <p className="text-[#607c8a] dark:text-gray-400 text-xs font-medium">
+                    {stats.verdicts_by_status.analyzing}
+                  </p>
+                </div>
+              </button>
+
+              <button
                 onClick={() => navigate('/verdicts?status=analyzed')}
                 className="flex items-center gap-3 rounded-lg border border-[#dbe2e6] dark:border-[#2d3a41] p-3 bg-background-light dark:bg-background-dark/50 hover:border-primary hover:shadow-md transition-all cursor-pointer text-right"
               >
@@ -262,6 +281,21 @@ export default function Dashboard() {
                   <h3 className="text-[#111618] dark:text-white text-sm font-bold truncate">נותח</h3>
                   <p className="text-[#607c8a] dark:text-gray-400 text-xs font-medium">
                     {stats.verdicts_by_status.analyzed}
+                  </p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => navigate('/verdicts?status=article_creating')}
+                className="flex items-center gap-3 rounded-lg border border-[#dbe2e6] dark:border-[#2d3a41] p-3 bg-background-light dark:bg-background-dark/50 hover:border-primary hover:shadow-md transition-all cursor-pointer text-right"
+              >
+                <div className="bg-teal-100 dark:bg-teal-900/30 p-2 rounded-lg text-teal-600 dark:text-teal-400 shrink-0">
+                  <span className="material-symbols-outlined text-xl animate-pulse">edit_note</span>
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-[#111618] dark:text-white text-sm font-bold truncate">יוצר מאמר...</h3>
+                  <p className="text-[#607c8a] dark:text-gray-400 text-xs font-medium">
+                    {stats.verdicts_by_status.article_creating}
                   </p>
                 </div>
               </button>
@@ -371,6 +405,20 @@ export default function Dashboard() {
                     <p className="text-xs text-[#607c8a] dark:text-gray-400">
                       {verdict.court_name} • {verdict.status}
                     </p>
+                    {/* Progress indicator - show when processing */}
+                    {['anonymizing', 'analyzing', 'article_creating'].includes(verdict.status) && (
+                      <div className="mt-2">
+                        <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+                          <div
+                            className="bg-blue-600 h-1.5 rounded-full transition-all duration-500"
+                            style={{ width: `${verdict.processing_progress || 0}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          {verdict.processing_progress || 0}% - {verdict.processing_message || 'מעבד...'}
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={() => navigate(`/verdicts/${verdict.id}`)}

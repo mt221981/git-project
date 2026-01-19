@@ -123,6 +123,66 @@ async def generate_article(
     return VerdictResponse.model_validate(verdict)
 
 
+@router.post("/retry/{verdict_id}", response_model=VerdictResponse, status_code=status.HTTP_202_ACCEPTED)
+async def retry_article_generation(
+    verdict_id: int,
+    background_tasks: BackgroundTasks,
+    verdict_service: VerdictService = Depends(get_verdict_service),
+    article_service: ArticleService = Depends(get_article_service)
+):
+    """
+    Retry article generation for a verdict with failed or low-quality article.
+
+    This endpoint will:
+    1. Delete the existing article (if any)
+    2. Reset verdict status to ANALYZED
+    3. Start background article generation
+
+    Use this when:
+    - Article generation failed
+    - Article quality is below standards
+    - You want to regenerate the article with improvements
+
+    Returns:
+        Verdict (client should poll until status is 'article_created')
+    """
+    verdict = verdict_service.get_verdict(verdict_id)
+
+    if not verdict:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Verdict with ID {verdict_id} not found"
+        )
+
+    # Check if verdict has been analyzed
+    if verdict.status in [VerdictStatus.NEW, VerdictStatus.EXTRACTED, VerdictStatus.ANONYMIZING, VerdictStatus.ANONYMIZED, VerdictStatus.ANALYZING]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Verdict must be analyzed before article retry. Current status: {verdict.status}"
+        )
+
+    # Delete existing article if exists
+    from app.models.article import Article
+    existing_article = article_service.db.query(Article).filter(
+        Article.verdict_id == verdict_id
+    ).first()
+
+    if existing_article:
+        print(f"[ArticleRetry] Deleting existing article {existing_article.id} for verdict {verdict_id}")
+        article_service.db.delete(existing_article)
+
+    # Reset verdict status to ANALYZED
+    verdict.status = VerdictStatus.ANALYZED
+    verdict.processing_progress = 65
+    verdict.processing_message = "מוכן ליצירת מאמר מחדש"
+    article_service.db.commit()
+
+    # Start background task
+    background_tasks.add_task(run_article_generation_background, verdict_id)
+
+    return VerdictResponse.model_validate(verdict)
+
+
 @router.get("", response_model=PaginatedResponse[ArticleListResponse])
 @router.get("/", response_model=PaginatedResponse[ArticleListResponse])
 async def list_articles(

@@ -66,8 +66,13 @@ export default function VerdictDetail() {
 
   // Update processing state based on verdict status
   useEffect(() => {
-    if (verdict?.status === 'anonymizing' || verdict?.status === 'analyzing') {
+    const processingStatuses = ['anonymizing', 'analyzing', 'article_creating'];
+
+    if (processingStatuses.includes(verdict?.status || '')) {
       setIsProcessing(true);
+      // Update progress from verdict fields
+      setOperationProgress(verdict?.processing_progress || 0);
+      setOperationMessage(verdict?.processing_message || 'מעבד...');
     } else if (verdict?.status === 'failed' && isProcessing) {
       // Operation failed - show error and reset
       setIsProcessing(false);
@@ -78,10 +83,10 @@ export default function VerdictDetail() {
       setTimeout(() => {
         setOperationMessage('');
       }, 5000);
-    } else if (verdict?.status === 'article_created' && isProcessing) {
-      // Article was created - fetch it and navigate
-      setOperationProgress(100);
-      setOperationMessage('המאמר נוצר בהצלחה! מעביר לדף המאמר...');
+    } else if ((verdict?.status === 'article_created' || verdict?.status === 'published') && isProcessing) {
+      // Article was created/published - fetch it and navigate
+      setOperationProgress(verdict?.processing_progress || 100);
+      setOperationMessage(verdict?.processing_message || 'המאמר נוצר בהצלחה! מעביר לדף המאמר...');
       articleApi.getByVerdict(Number(id)).then((response) => {
         const articleId = response.data.id;
         setTimeout(() => {
@@ -92,7 +97,7 @@ export default function VerdictDetail() {
         setIsProcessing(false);
         setOperationMessage('המאמר נוצר אך לא ניתן לטעון אותו');
       });
-    } else if (isProcessing && !['anonymizing', 'analyzing', 'failed'].includes(verdict?.status || '')) {
+    } else if (isProcessing && !['anonymizing', 'analyzing', 'article_creating', 'failed'].includes(verdict?.status || '')) {
       // Operation completed successfully (anonymized, analyzed, etc.)
       setIsProcessing(false);
       setOperationProgress(100);
@@ -165,6 +170,23 @@ export default function VerdictDetail() {
     },
   });
 
+  const retryArticleMutation = useMutation({
+    mutationFn: () => articleApi.retryGeneration(Number(id)),
+    onMutate: () => {
+      setIsProcessing(true);
+      setOperationProgress(65);
+      setOperationMessage('מתחיל יצירת מאמר מחדש...');
+      setOperationStartTime(Date.now());
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['verdict', id] });
+    },
+    onError: (error: Error) => {
+      setIsProcessing(false);
+      setOperationMessage(`שגיאה: ${error.message}`);
+    },
+  });
+
   const reprocessMutation = useMutation({
     mutationFn: () => verdictApi.reprocess(Number(id)),
     onMutate: () => {
@@ -181,6 +203,20 @@ export default function VerdictDetail() {
       setIsProcessing(false);
       setOperationProgress(0);
       setOperationMessage(`שגיאה: ${error.message}`);
+    },
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: () => verdictApi.reset(Number(id)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['verdict', id] });
+      setOperationProgress(0);
+      setOperationMessage('פסק הדין אופס בהצלחה');
+      setIsProcessing(false);
+      setTimeout(() => setOperationMessage(''), 3000);
+    },
+    onError: (error: Error) => {
+      setOperationMessage(`שגיאה באיפוס: ${error.message}`);
     },
   });
 
@@ -379,12 +415,47 @@ export default function VerdictDetail() {
               </button>
             )}
 
+            {(verdict.status === 'article_created' || verdict.status === 'failed' || verdict.status === 'published') && (
+              <button
+                onClick={() => retryArticleMutation.mutate()}
+                disabled={retryArticleMutation.isPending || isProcessing}
+                className="btn bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {retryArticleMutation.isPending ? (
+                  <span className="flex items-center gap-2">
+                    <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                    מייצר מאמר מחדש...
+                  </span>
+                ) : (
+                  'צור מאמר משופר'
+                )}
+              </button>
+            )}
+
             {verdict.status === 'failed' && (
               <button
                 onClick={() => refetch()}
                 className="btn btn-secondary"
               >
                 רענן סטטוס
+              </button>
+            )}
+
+            {/* Reset button - for stuck verdicts */}
+            {['anonymizing', 'analyzing', 'failed'].includes(verdict.status) && (
+              <button
+                onClick={() => resetMutation.mutate()}
+                disabled={resetMutation.isPending}
+                className="btn bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {resetMutation.isPending ? (
+                  <span className="flex items-center gap-2">
+                    <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
+                    מאפס...
+                  </span>
+                ) : (
+                  'אפס פסק דין תקוע'
+                )}
               </button>
             )}
 

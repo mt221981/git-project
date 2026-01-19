@@ -92,16 +92,36 @@ class AnalysisService:
             self.db.commit()
 
         try:
+            # Set initial progress
+            verdict.processing_progress = 35
+            verdict.processing_message = "מתחיל ניתוח משפטי..."
+            self.db.commit()
+
             # Use anonymized text for analysis
             text_to_analyze = verdict.anonymized_text or verdict.cleaned_text or verdict.original_text
 
+            # Step 1: Extract legal basis (35-45%)
+            verdict.processing_progress = 40
+            verdict.processing_message = "מחלץ בסיס משפטי וסעיפי חוק..."
+            self.db.commit()
+
             # Perform analysis
             result = self.analyze_text(text_to_analyze)
+
+            # Step 2: Extract key issues (45-55%)
+            verdict.processing_progress = 50
+            verdict.processing_message = "מזהה נושאים מרכזיים..."
+            self.db.commit()
 
             # Update verdict with analysis results
             verdict.key_facts = result.get("key_facts", [])
             verdict.legal_questions = result.get("legal_questions", [])
             verdict.legal_principles = result.get("legal_principles", [])
+
+            # Step 3: Extract decision (55-60%)
+            verdict.processing_progress = 55
+            verdict.processing_message = "מחלץ החלטת בית המשפט..."
+            self.db.commit()
 
             # Update compensation if found in analysis
             if result.get("compensation_amount"):
@@ -117,12 +137,19 @@ class AnalysisService:
             if result.get("precedents_cited"):
                 verdict.precedents_cited = result["precedents_cited"]
 
+            # Step 4: Generate keywords and finalize (60-65%)
+            verdict.processing_progress = 60
+            verdict.processing_message = "מייצר מילות מפתח SEO..."
+            self.db.commit()
+
             # Update practical insights
             if result.get("practical_insights"):
                 verdict.practical_insights = result["practical_insights"]
 
             # Mark as analyzed
             verdict.status = VerdictStatus.ANALYZED
+            verdict.processing_progress = 65
+            verdict.processing_message = "ניתוח משפטי הושלם בהצלחה"
             self.db.commit()
             self.db.refresh(verdict)
 
@@ -130,7 +157,9 @@ class AnalysisService:
 
         except Exception as e:
             # Revert status on error
-            verdict.status = VerdictStatus.ANONYMIZED
+            verdict.status = VerdictStatus.FAILED
+            verdict.processing_progress = 35
+            verdict.processing_message = f"שגיאה בניתוח: {str(e)}"
             verdict.review_notes = f"Analysis failed: {str(e)}"
             self.db.commit()
             raise AnalysisError(f"Failed to analyze verdict: {str(e)}")

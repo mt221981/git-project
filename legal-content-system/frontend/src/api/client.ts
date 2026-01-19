@@ -21,6 +21,7 @@ export const verdictApi = {
   get: (id: number) => apiClient.get(`/verdicts/${id}`),
   anonymize: (id: number) => apiClient.post(`/verdicts/${id}/anonymize`),
   reprocess: (id: number) => apiClient.post(`/verdicts/${id}/reprocess`),
+  reset: (id: number) => apiClient.post(`/verdicts/${id}/reset`),
   delete: (id: number) => apiClient.delete(`/verdicts/${id}`),
   getStats: () => apiClient.get('/verdicts/statistics/overview'),
 };
@@ -30,6 +31,8 @@ export const articleApi = {
     apiClient.post(`/articles/verdicts/${verdictId}/analyze`),
   generate: (verdictId: number) =>
     apiClient.post(`/articles/generate/${verdictId}`),
+  retryGeneration: (verdictId: number) =>
+    apiClient.post(`/articles/retry/${verdictId}`),
   list: (params?: { skip?: number; limit?: number; status?: string }) =>
     apiClient.get('/articles', { params }),
   get: (id: number) => apiClient.get(`/articles/${id}`),

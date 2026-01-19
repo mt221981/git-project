@@ -426,3 +426,45 @@ async def reprocess_verdict(
     background_tasks.add_task(run_full_pipeline_background, verdict_id)
 
     return VerdictResponse.model_validate(verdict)
+
+
+@router.post("/{verdict_id}/reset", response_model=VerdictResponse)
+async def reset_stuck_verdict(
+    verdict_id: int,
+    service: VerdictService = Depends(get_verdict_service)
+):
+    """
+    Reset a stuck verdict back to a processable state.
+
+    Use this when a verdict is stuck in 'anonymizing', 'analyzing', or other processing states.
+    This will reset the verdict to 'extracted' status so it can be reprocessed.
+
+    Returns:
+        Verdict with status 'extracted'
+    """
+    verdict = service.get_verdict(verdict_id)
+
+    if not verdict:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Verdict with ID {verdict_id} not found"
+        )
+
+    # Check if verdict is in a stuck processing state
+    stuck_states = [VerdictStatus.ANONYMIZING, VerdictStatus.ANALYZING]
+
+    if verdict.status not in stuck_states and verdict.status != VerdictStatus.FAILED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Verdict is not stuck. Current status: {verdict.status}"
+        )
+
+    # Reset to extracted
+    verdict.status = VerdictStatus.EXTRACTED
+    verdict.processing_progress = 0
+    verdict.processing_message = "איפוס לאחר תקיעה"
+
+    service.db.commit()
+    service.db.refresh(verdict)
+
+    return VerdictResponse.model_validate(verdict)

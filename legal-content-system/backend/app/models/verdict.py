@@ -29,6 +29,7 @@ class VerdictStatus(str, enum.Enum):
     ANONYMIZED = "anonymized"
     ANALYZING = "analyzing"
     ANALYZED = "analyzed"
+    ARTICLE_CREATING = "article_creating"  # New status for article generation in progress
     ARTICLE_CREATED = "article_created"
     PUBLISHED = "published"
     FAILED = "failed"

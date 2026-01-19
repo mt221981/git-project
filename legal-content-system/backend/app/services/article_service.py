@@ -241,28 +241,95 @@ class ArticleService:
                 "practical_insights": verdict.practical_insights or []
             }
 
-            # Generate article content
-            article_content = self.generate_article_content(verdict_metadata, analysis_data)
+            # Quality control retry loop
+            MAX_GENERATION_ATTEMPTS = 5
+            MIN_SCORE_THRESHOLD = 95  # Updated from 90 to 95 for higher quality standards
+            previous_scores = None
 
-            print(f"[ArticleService] Article generated, content_html length: {len(article_content.get('content_html', ''))}")
+            # Set initial progress for article generation
+            verdict.status = VerdictStatus.ARTICLE_CREATING
+            verdict.processing_progress = 65
+            verdict.processing_message = "מתחיל יצירת מאמר..."
+            self.db.commit()
 
-            # Enhance with SEO links
-            from app.services.link_enhancement import LinkEnhancementService
-            link_service = LinkEnhancementService()
+            for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
+                # Calculate progress: 65 + (attempt-1)*7 = 65, 72, 79, 86, 93
+                progress = 65 + (attempt - 1) * 7
+                verdict.processing_progress = progress
+                verdict.processing_message = f"יוצר מאמר - ניסיון {attempt}/{MAX_GENERATION_ATTEMPTS}..."
+                self.db.commit()
 
-            enhanced_html = link_service.enhance_with_links(
-                content_html=article_content["content_html"],
-                focus_keyword=article_content.get("focus_keyword"),
-                secondary_keywords=article_content.get("secondary_keywords"),
-                max_internal=5,
-                max_external=3
-            )
+                print(f"[ArticleService] Article generation attempt {attempt}/{MAX_GENERATION_ATTEMPTS}")
 
-            article_content["content_html"] = enhanced_html
+                # Build improvement hints from previous attempt
+                improvement_hints = None
+                if attempt > 1 and previous_scores:
+                    improvement_hints = self._build_improvement_hints(previous_scores)
+                    print(f"[ArticleService] Improvement hints:\n{improvement_hints}")
 
-            # Log link stats
-            link_stats = link_service.get_stats(enhanced_html)
-            print(f"[LinkEnhancement] Added {link_stats['internal_links']} internal, {link_stats['external_links']} external links")
+                # Generate article content (pass hints to generator)
+                article_content = self.generator.generate(
+                    {**verdict_metadata, **analysis_data},
+                    improvement_hints=improvement_hints
+                )
+
+                print(f"[ArticleService] Article generated, content_html length: {len(article_content.get('content_html', ''))}")
+
+                # Enhance with SEO links
+                from app.services.link_enhancement import LinkEnhancementService
+                link_service = LinkEnhancementService()
+
+                enhanced_html = link_service.enhance_with_links(
+                    content_html=article_content["content_html"],
+                    focus_keyword=article_content.get("focus_keyword"),
+                    secondary_keywords=article_content.get("secondary_keywords"),
+                    max_internal=5,
+                    max_external=3
+                )
+
+                article_content["content_html"] = enhanced_html
+
+                # Log link stats
+                link_stats = link_service.get_stats(enhanced_html)
+                print(f"[LinkEnhancement] Added {link_stats['internal_links']} internal, {link_stats['external_links']} external links")
+
+                # Score article
+                scores = self.score_article(article_content)
+
+                min_score = min(
+                    scores["content_score"],
+                    scores["seo_score"],
+                    scores["readability_score"],
+                    scores["eeat_score"]
+                )
+
+                print(f"[ArticleService] Scores - Content: {scores['content_score']}, SEO: {scores['seo_score']}, Readability: {scores['readability_score']}, E-E-A-T: {scores['eeat_score']}, Min: {min_score}")
+
+                # Check if quality threshold met
+                if min_score >= MIN_SCORE_THRESHOLD:
+                    print(f"[ArticleService] Quality threshold met! All scores >= {MIN_SCORE_THRESHOLD}")
+                    verdict.processing_progress = 95
+                    verdict.processing_message = f"מאמר עבר את כל בדיקות האיכות (ציון מינימלי: {min_score})"
+                    self.db.commit()
+                    # Break out of retry loop - continue to save article
+                    break
+
+                # Not good enough - prepare for retry or fail
+                if attempt < MAX_GENERATION_ATTEMPTS:
+                    print(f"[ArticleService] Quality threshold not met (min={min_score}). Retrying with improvements...")
+                    verdict.processing_message = f"ציון לא מספיק ({min_score}) - מנסה שוב..."
+                    self.db.commit()
+                    previous_scores = scores
+                    # Loop continues to next attempt
+                else:
+                    # Failed after max attempts
+                    print(f"[ArticleService] Failed to meet quality threshold after {MAX_GENERATION_ATTEMPTS} attempts")
+                    verdict.status = VerdictStatus.FAILED
+                    verdict.processing_progress = 65
+                    verdict.processing_message = f"נכשל אחרי {MAX_GENERATION_ATTEMPTS} ניסיונות - ציון מינימלי: {min_score}"
+                    verdict.review_notes = f"Article quality below threshold after {MAX_GENERATION_ATTEMPTS} attempts. Last scores: Content={scores['content_score']}, SEO={scores['seo_score']}, Readability={scores['readability_score']}, E-E-A-T={scores['eeat_score']}"
+                    self.db.commit()
+                    raise ArticleGenerationError(verdict.review_notes)
 
             # Calculate metrics
             word_count = self.calculate_word_count(article_content["content_html"])
@@ -275,9 +342,6 @@ class ArticleService:
             while self.db.query(Article).filter(Article.slug == slug).first():
                 slug = f"{base_slug}-{counter}"
                 counter += 1
-
-            # Score article
-            scores = self.score_article(article_content)
 
             # Generate schema markup
             schema_data = self.generate_schema_markup({
@@ -323,15 +387,129 @@ class ArticleService:
 
             # Update verdict status
             verdict.status = VerdictStatus.ARTICLE_CREATED
+            verdict.processing_progress = 95
+            verdict.processing_message = "מאמר נוצר בהצלחה, מתכונן לפרסום..."
 
             self.db.commit()
             self.db.refresh(article)
+
+            # Auto-publish to WordPress if quality threshold met (95+)
+            try:
+                verdict.processing_message = "מפרסם אוטומטית ל-WordPress..."
+                self.db.commit()
+
+                # Import WordPress service and models
+                from app.services.wordpress_service import WordPressService
+                from app.models.wordpress_site import WordPressSite
+
+                wp_service = WordPressService(self.db)
+
+                # Get default WordPress site (first active site)
+                default_site = self.db.query(WordPressSite).filter(
+                    WordPressSite.is_active == True
+                ).first()
+
+                if not default_site:
+                    raise Exception("No active WordPress site configured")
+
+                # Publish to WordPress
+                updated_article = wp_service.publish_article(
+                    article_id=article.id,
+                    site_id=default_site.id,
+                    status="publish"  # Publish immediately
+                )
+
+                # The publish_article method already updates article.wordpress_post_id
+                # Just update verdict status
+                verdict.status = VerdictStatus.PUBLISHED
+                verdict.processing_progress = 100
+                verdict.processing_message = f"פורסם בהצלחה ל-WordPress (Post ID: {updated_article.wordpress_post_id})"
+                self.db.commit()
+
+                print(f"[ArticleService] Auto-published to WordPress: Post ID {updated_article.wordpress_post_id}")
+
+            except Exception as e:
+                # If WordPress publish fails, keep article as ARTICLE_CREATED (manual publish option)
+                import traceback
+                print(f"[ArticleService] Auto-publish failed: {str(e)}")
+                print(traceback.format_exc())
+
+                verdict.status = VerdictStatus.ARTICLE_CREATED
+                verdict.processing_progress = 100
+                verdict.processing_message = f"מאמר נוצר אך הפרסום נכשל: {str(e)[:100]} - ניתן לפרסם ידנית"
+                self.db.commit()
 
             return article
 
         except Exception as e:
             self.db.rollback()
             raise ArticleGenerationError(f"Failed to generate article: {str(e)}")
+
+    def _build_improvement_hints(self, previous_scores: dict) -> str:
+        """Build specific improvement instructions based on previous scores."""
+        MIN_SCORE_THRESHOLD = 95  # Updated from 90 to 95 for higher quality standards
+        hints = ["## הנחיות לשיפור (בהתאם לציונים הקודמים):"]
+
+        if previous_scores["seo_score"] < MIN_SCORE_THRESHOLD:
+            hints.append(f"""
+### SEO (ציון קודם: {previous_scores['seo_score']}) - יעד: 95+
+- הגדל צפיפות מילות מפתח ל-1.2%-1.5% (20-25 הזכרות)
+- ודא מילת מפתח בפסקה הראשונה (100 מילים ראשונות)
+- ודא מילת מפתח בכל H2
+- שפר Meta Description: מילת מפתח + ערך + CTA (150-160 תווים)
+- הוסף 3-5 קישורים פנימיים
+- הוסף 2-3 קישורים חיצוניים אמינים
+""")
+
+        if previous_scores["eeat_score"] < MIN_SCORE_THRESHOLD:
+            hints.append(f"""
+### E-E-A-T (ציון קודם: {previous_scores['eeat_score']}) - יעד: 95+
+**Expertise:**
+- הוסף 12+ מונחים משפטיים מקצועיים עם הסברים
+- הנגש טרמינולוגיה בצורה רהוטה
+
+**Authoritativeness:**
+- הוסף 6-8 ציטוטים חוקיים **מדויקים** (סעיף + מספר חוק)
+- הזכר 2-3 תקדימים בשמות **מלאים** (דוגמה: "ע\\"א 1234/20 פלוני נ' אלמוני")
+- קשר לnevo.co.il או gov.il (2-3 קישורים)
+
+**Trustworthiness:**
+- ודא דיוק עובדתי מוחלט
+- הוסף disclaimer ברור בסוף
+""")
+
+        if previous_scores["readability_score"] < MIN_SCORE_THRESHOLD:
+            hints.append(f"""
+### קריאות (ציון קודם: {previous_scores['readability_score']}) - יעד: 95+
+- קצר משפטים - **ממוצע 15 מילים** (לא יותר!)
+- פרק לפסקאות קצרות - **2-3 שורות מקסימום**
+- הוסף 5-6 רשימות תבליטים
+- הוסף 10-12 מילות מעבר (לכן, בנוסף, מאידך, יתר על כן)
+- ודא זרימה טבעית וקולחת
+""")
+
+        if previous_scores["content_score"] < MIN_SCORE_THRESHOLD:
+            hints.append(f"""
+### תוכן (ציון קודם: {previous_scores['content_score']}) - יעד: 95+
+**Hook שיווקי:**
+- פתיחה חזקה שמושכת - אל תסכם, תזקק משמעות!
+- השב על "למה זה חשוב לי?" בפסקה הראשונה
+
+**ערך למשתמש:**
+- הוסף 200-300 מילים של תוכן מעשי
+- התמקד ב"איך זה משפיע עלי?"
+- הוסף 2-3 דוגמאות מעשיות או תרחישים
+- הרחב את סעיף "מה אפשר ללמוד בפועל"
+
+**כותרות מגנטיות:**
+- שנה כותרות H2 לכותרות שמבטיחות ערך
+- דוגמה: במקום "הרקע העובדתי" → "מה קרה במציאות?"
+
+**CTA:**
+- הוסף קריאה לפעולה חזקה בסיום המאמר
+""")
+
+        return "\n".join(hints)
 
     def get_article(self, article_id: int) -> Optional[Article]:
         """Get article by ID."""
