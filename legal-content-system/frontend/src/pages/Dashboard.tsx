@@ -9,9 +9,11 @@ interface Stats {
   published_articles: number;
   verdicts_by_status: {
     new: number;
-    extracting: number;
+    extracted: number;
     anonymizing: number;
+    anonymized: number;
     analyzed: number;
+    article_created: number;
   };
   quality_scores: {
     content: number;
@@ -65,9 +67,11 @@ export default function Dashboard() {
     published_articles: articleStats?.by_status?.published || 0,
     verdicts_by_status: {
       new: verdictStats?.by_status?.new || 0,
-      extracting: verdictStats?.by_status?.extracting || 0,
+      extracted: verdictStats?.by_status?.extracted || 0,
       anonymizing: verdictStats?.by_status?.anonymizing || 0,
+      anonymized: verdictStats?.by_status?.anonymized || 0,
       analyzed: verdictStats?.by_status?.analyzed || 0,
+      article_created: verdictStats?.by_status?.article_created || 0,
     },
     quality_scores: {
       content: articleStats?.average_scores?.content || 0,
@@ -186,63 +190,93 @@ export default function Dashboard() {
                 פרטים נוספים
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
               <button
                 onClick={() => navigate('/verdicts?status=new')}
-                className="flex items-center gap-4 rounded-lg border border-[#dbe2e6] dark:border-[#2d3a41] p-4 bg-background-light dark:bg-background-dark/50 hover:border-primary hover:shadow-md transition-all cursor-pointer text-right"
+                className="flex items-center gap-3 rounded-lg border border-[#dbe2e6] dark:border-[#2d3a41] p-3 bg-background-light dark:bg-background-dark/50 hover:border-primary hover:shadow-md transition-all cursor-pointer text-right"
               >
-                <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg text-blue-600 dark:text-blue-400">
-                  <span className="material-symbols-outlined">new_releases</span>
+                <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg text-blue-600 dark:text-blue-400 shrink-0">
+                  <span className="material-symbols-outlined text-xl">new_releases</span>
                 </div>
-                <div>
-                  <h3 className="text-[#111618] dark:text-white text-sm font-bold">חדש</h3>
-                  <p className="text-[#607c8a] dark:text-gray-400 text-xs font-normal">
-                    {stats.verdicts_by_status.new} פסקי דין
+                <div className="min-w-0">
+                  <h3 className="text-[#111618] dark:text-white text-sm font-bold truncate">חדש</h3>
+                  <p className="text-[#607c8a] dark:text-gray-400 text-xs font-medium">
+                    {stats.verdicts_by_status.new}
                   </p>
                 </div>
               </button>
 
               <button
-                onClick={() => navigate('/verdicts?status=extracting')}
-                className="flex items-center gap-4 rounded-lg border border-[#dbe2e6] dark:border-[#2d3a41] p-4 bg-background-light dark:bg-background-dark/50 hover:border-primary hover:shadow-md transition-all cursor-pointer text-right"
+                onClick={() => navigate('/verdicts?status=extracted')}
+                className="flex items-center gap-3 rounded-lg border border-[#dbe2e6] dark:border-[#2d3a41] p-3 bg-background-light dark:bg-background-dark/50 hover:border-primary hover:shadow-md transition-all cursor-pointer text-right"
               >
-                <div className="bg-amber-100 dark:bg-amber-900/30 p-2 rounded-lg text-amber-600 dark:text-amber-400">
-                  <span className="material-symbols-outlined">chip_extraction</span>
+                <div className="bg-amber-100 dark:bg-amber-900/30 p-2 rounded-lg text-amber-600 dark:text-amber-400 shrink-0">
+                  <span className="material-symbols-outlined text-xl">description</span>
                 </div>
-                <div>
-                  <h3 className="text-[#111618] dark:text-white text-sm font-bold">מיצוי נתונים</h3>
-                  <p className="text-[#607c8a] dark:text-gray-400 text-xs font-normal">
-                    {stats.verdicts_by_status.extracting} פסקי דין
+                <div className="min-w-0">
+                  <h3 className="text-[#111618] dark:text-white text-sm font-bold truncate">הופק</h3>
+                  <p className="text-[#607c8a] dark:text-gray-400 text-xs font-medium">
+                    {stats.verdicts_by_status.extracted}
                   </p>
                 </div>
               </button>
 
               <button
                 onClick={() => navigate('/verdicts?status=anonymizing')}
-                className="flex items-center gap-4 rounded-lg border border-[#dbe2e6] dark:border-[#2d3a41] p-4 bg-background-light dark:bg-background-dark/50 hover:border-primary hover:shadow-md transition-all cursor-pointer text-right"
+                className="flex items-center gap-3 rounded-lg border border-[#dbe2e6] dark:border-[#2d3a41] p-3 bg-background-light dark:bg-background-dark/50 hover:border-primary hover:shadow-md transition-all cursor-pointer text-right"
               >
-                <div className="bg-purple-100 dark:bg-purple-900/30 p-2 rounded-lg text-purple-600 dark:text-purple-400">
-                  <span className="material-symbols-outlined">privacy_tip</span>
+                <div className="bg-purple-100 dark:bg-purple-900/30 p-2 rounded-lg text-purple-600 dark:text-purple-400 shrink-0">
+                  <span className="material-symbols-outlined text-xl">privacy_tip</span>
                 </div>
-                <div>
-                  <h3 className="text-[#111618] dark:text-white text-sm font-bold">אנונימיזציה</h3>
-                  <p className="text-[#607c8a] dark:text-gray-400 text-xs font-normal">
-                    {stats.verdicts_by_status.anonymizing} פסקי דין
+                <div className="min-w-0">
+                  <h3 className="text-[#111618] dark:text-white text-sm font-bold truncate">מאנונם</h3>
+                  <p className="text-[#607c8a] dark:text-gray-400 text-xs font-medium">
+                    {stats.verdicts_by_status.anonymizing}
+                  </p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => navigate('/verdicts?status=anonymized')}
+                className="flex items-center gap-3 rounded-lg border border-[#dbe2e6] dark:border-[#2d3a41] p-3 bg-background-light dark:bg-background-dark/50 hover:border-primary hover:shadow-md transition-all cursor-pointer text-right"
+              >
+                <div className="bg-indigo-100 dark:bg-indigo-900/30 p-2 rounded-lg text-indigo-600 dark:text-indigo-400 shrink-0">
+                  <span className="material-symbols-outlined text-xl">verified_user</span>
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-[#111618] dark:text-white text-sm font-bold truncate">אנונימי</h3>
+                  <p className="text-[#607c8a] dark:text-gray-400 text-xs font-medium">
+                    {stats.verdicts_by_status.anonymized}
                   </p>
                 </div>
               </button>
 
               <button
                 onClick={() => navigate('/verdicts?status=analyzed')}
-                className="flex items-center gap-4 rounded-lg border border-[#dbe2e6] dark:border-[#2d3a41] p-4 bg-background-light dark:bg-background-dark/50 hover:border-primary hover:shadow-md transition-all cursor-pointer text-right"
+                className="flex items-center gap-3 rounded-lg border border-[#dbe2e6] dark:border-[#2d3a41] p-3 bg-background-light dark:bg-background-dark/50 hover:border-primary hover:shadow-md transition-all cursor-pointer text-right"
               >
-                <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg text-green-600 dark:text-green-400">
-                  <span className="material-symbols-outlined">fact_check</span>
+                <div className="bg-cyan-100 dark:bg-cyan-900/30 p-2 rounded-lg text-cyan-600 dark:text-cyan-400 shrink-0">
+                  <span className="material-symbols-outlined text-xl">psychology</span>
                 </div>
-                <div>
-                  <h3 className="text-[#111618] dark:text-white text-sm font-bold">מוכן לסקירה</h3>
-                  <p className="text-[#607c8a] dark:text-gray-400 text-xs font-normal">
-                    {stats.verdicts_by_status.analyzed} פסקי דין
+                <div className="min-w-0">
+                  <h3 className="text-[#111618] dark:text-white text-sm font-bold truncate">נותח</h3>
+                  <p className="text-[#607c8a] dark:text-gray-400 text-xs font-medium">
+                    {stats.verdicts_by_status.analyzed}
+                  </p>
+                </div>
+              </button>
+
+              <button
+                onClick={() => navigate('/verdicts?status=article_created')}
+                className="flex items-center gap-3 rounded-lg border border-[#dbe2e6] dark:border-[#2d3a41] p-3 bg-background-light dark:bg-background-dark/50 hover:border-primary hover:shadow-md transition-all cursor-pointer text-right"
+              >
+                <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg text-green-600 dark:text-green-400 shrink-0">
+                  <span className="material-symbols-outlined text-xl">article</span>
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-[#111618] dark:text-white text-sm font-bold truncate">מאמר</h3>
+                  <p className="text-[#607c8a] dark:text-gray-400 text-xs font-medium">
+                    {stats.verdicts_by_status.article_created}
                   </p>
                 </div>
               </button>
