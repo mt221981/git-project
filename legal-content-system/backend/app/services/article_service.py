@@ -243,7 +243,7 @@ class ArticleService:
 
             # Quality control retry loop
             MAX_GENERATION_ATTEMPTS = 5
-            MIN_SCORE_THRESHOLD = 95  # Updated from 90 to 95 for higher quality standards
+            MIN_SCORE_THRESHOLD = 70  # Balanced threshold for quality articles
             previous_scores = None
 
             # Set initial progress for article generation
@@ -393,50 +393,56 @@ class ArticleService:
             self.db.commit()
             self.db.refresh(article)
 
-            # Auto-publish to WordPress if quality threshold met (95+)
-            try:
-                verdict.processing_message = "מפרסם אוטומטית ל-WordPress..."
-                self.db.commit()
+            # Auto-publish to WordPress if quality threshold met
+            # First, check if WordPress is configured
+            from app.models.wordpress_site import WordPressSite
 
-                # Import WordPress service and models
-                from app.services.wordpress_service import WordPressService
-                from app.models.wordpress_site import WordPressSite
+            default_site = self.db.query(WordPressSite).filter(
+                WordPressSite.is_active == True
+            ).first()
 
-                wp_service = WordPressService(self.db)
+            if default_site:
+                # WordPress site exists - try to publish
+                try:
+                    verdict.processing_message = "מפרסם אוטומטית ל-WordPress..."
+                    self.db.commit()
 
-                # Get default WordPress site (first active site)
-                default_site = self.db.query(WordPressSite).filter(
-                    WordPressSite.is_active == True
-                ).first()
+                    # Import WordPress service
+                    from app.services.wordpress_service import WordPressService
+                    wp_service = WordPressService(self.db)
 
-                if not default_site:
-                    raise Exception("No active WordPress site configured")
+                    # Publish to WordPress
+                    updated_article = wp_service.publish_article(
+                        article_id=article.id,
+                        site_id=default_site.id,
+                        status="publish"  # Publish immediately
+                    )
 
-                # Publish to WordPress
-                updated_article = wp_service.publish_article(
-                    article_id=article.id,
-                    site_id=default_site.id,
-                    status="publish"  # Publish immediately
-                )
+                    # The publish_article method already updates article.wordpress_post_id
+                    # Just update verdict status
+                    verdict.status = VerdictStatus.PUBLISHED
+                    verdict.processing_progress = 100
+                    verdict.processing_message = f"פורסם בהצלחה ל-WordPress (Post ID: {updated_article.wordpress_post_id})"
+                    self.db.commit()
 
-                # The publish_article method already updates article.wordpress_post_id
-                # Just update verdict status
-                verdict.status = VerdictStatus.PUBLISHED
-                verdict.processing_progress = 100
-                verdict.processing_message = f"פורסם בהצלחה ל-WordPress (Post ID: {updated_article.wordpress_post_id})"
-                self.db.commit()
+                    print(f"[ArticleService] Auto-published to WordPress: Post ID {updated_article.wordpress_post_id}")
 
-                print(f"[ArticleService] Auto-published to WordPress: Post ID {updated_article.wordpress_post_id}")
+                except Exception as e:
+                    # If WordPress publish fails, keep article as ARTICLE_CREATED (manual publish option)
+                    import traceback
+                    print(f"[ArticleService] Auto-publish failed: {str(e)}")
+                    print(traceback.format_exc())
 
-            except Exception as e:
-                # If WordPress publish fails, keep article as ARTICLE_CREATED (manual publish option)
-                import traceback
-                print(f"[ArticleService] Auto-publish failed: {str(e)}")
-                print(traceback.format_exc())
-
+                    verdict.status = VerdictStatus.ARTICLE_CREATED
+                    verdict.processing_progress = 100
+                    verdict.processing_message = f"מאמר נוצר בהצלחה - פרסום ל-WordPress נכשל (יש לבדוק הגדרות)"
+                    self.db.commit()
+            else:
+                # No WordPress site configured - save as ARTICLE_CREATED
+                print("[ArticleService] No active WordPress site - skipping auto-publish")
                 verdict.status = VerdictStatus.ARTICLE_CREATED
                 verdict.processing_progress = 100
-                verdict.processing_message = f"מאמר נוצר אך הפרסום נכשל: {str(e)[:100]} - ניתן לפרסם ידנית"
+                verdict.processing_message = "מאמר נוצר בהצלחה - אין אתר WordPress מוגדר לפרסום אוטומטי"
                 self.db.commit()
 
             return article
@@ -447,7 +453,7 @@ class ArticleService:
 
     def _build_improvement_hints(self, previous_scores: dict) -> str:
         """Build specific improvement instructions based on previous scores."""
-        MIN_SCORE_THRESHOLD = 95  # Updated from 90 to 95 for higher quality standards
+        MIN_SCORE_THRESHOLD = 85  # Realistic threshold for quality articles
         hints = ["## הנחיות לשיפור (בהתאם לציונים הקודמים):"]
 
         if previous_scores["seo_score"] < MIN_SCORE_THRESHOLD:
