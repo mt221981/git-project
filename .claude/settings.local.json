@@ -40,7 +40,15 @@
       "Bash(select:*)",
       "Bash(del temp_article.html)",
       "Read(//c/**)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(npx vite:*)",
+      "Bash(wc:*)",
+      "Bash(find:*)",
+      "Bash(if exist \"test_agent_system.py\" del \"test_agent_system.py\")",
+      "Bash(if exist \"test_full_agent_workflow.py\" del \"test_full_agent_workflow.py\")",
+      "Bash(if [ -f \"c:tempverdict6.json\" ])",
+      "Bash(then rm -f \"c:tempverdict6.json\")",
+      "Bash(fi)"
     ]
   }
 }

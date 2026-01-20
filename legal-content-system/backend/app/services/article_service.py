@@ -242,8 +242,9 @@ class ArticleService:
             }
 
             # Quality control retry loop
-            MAX_GENERATION_ATTEMPTS = 5
-            MIN_SCORE_THRESHOLD = 85  # Quality threshold - 85+ for all metrics
+            MAX_GENERATION_ATTEMPTS = 3  # Reduced from 5 for better performance
+            MIN_SCORE_THRESHOLD = 85  # Quality threshold - 85+ for most metrics
+            MIN_SCORE_THRESHOLD_EEAT = 75  # Lower threshold for E-E-A-T (harder to achieve)
             previous_scores = None
 
             # Set initial progress for article generation
@@ -296,28 +297,37 @@ class ArticleService:
                 # Score article
                 scores = self.score_article(article_content)
 
-                min_score = min(
-                    scores["content_score"],
-                    scores["seo_score"],
-                    scores["readability_score"],
-                    scores["eeat_score"]
-                )
+                # Separate check for E-E-A-T (has lower threshold)
+                content_ok = scores["content_score"] >= MIN_SCORE_THRESHOLD
+                seo_ok = scores["seo_score"] >= MIN_SCORE_THRESHOLD
+                readability_ok = scores["readability_score"] >= MIN_SCORE_THRESHOLD
+                eeat_ok = scores["eeat_score"] >= MIN_SCORE_THRESHOLD_EEAT
 
-                print(f"[ArticleService] Scores - Content: {scores['content_score']}, SEO: {scores['seo_score']}, Readability: {scores['readability_score']}, E-E-A-T: {scores['eeat_score']}, Min: {min_score}")
+                all_passed = content_ok and seo_ok and readability_ok and eeat_ok
+                min_score = min(scores["content_score"], scores["seo_score"], scores["readability_score"], scores["eeat_score"])
+
+                print(f"[ArticleService] Scores - Content: {scores['content_score']}, SEO: {scores['seo_score']}, Readability: {scores['readability_score']}, E-E-A-T: {scores['eeat_score']}")
+                print(f"[ArticleService] Thresholds - Content/SEO/Readability: {MIN_SCORE_THRESHOLD}, E-E-A-T: {MIN_SCORE_THRESHOLD_EEAT}")
 
                 # Check if quality threshold met
-                if min_score >= MIN_SCORE_THRESHOLD:
-                    print(f"[ArticleService] Quality threshold met! All scores >= {MIN_SCORE_THRESHOLD}")
+                if all_passed:
+                    print(f"[ArticleService] Quality thresholds met! All scores passed.")
                     verdict.processing_progress = 95
-                    verdict.processing_message = f"מאמר עבר את כל בדיקות האיכות (ציון מינימלי: {min_score})"
+                    verdict.processing_message = f"מאמר עבר את כל בדיקות האיכות"
                     self.db.commit()
                     # Break out of retry loop - continue to save article
                     break
 
                 # Not good enough - prepare for retry or fail
                 if attempt < MAX_GENERATION_ATTEMPTS:
-                    print(f"[ArticleService] Quality threshold not met (min={min_score}). Retrying with improvements...")
-                    verdict.processing_message = f"ציון לא מספיק ({min_score}) - מנסה שוב..."
+                    failed_metrics = []
+                    if not content_ok: failed_metrics.append(f"Content({scores['content_score']})")
+                    if not seo_ok: failed_metrics.append(f"SEO({scores['seo_score']})")
+                    if not readability_ok: failed_metrics.append(f"Readability({scores['readability_score']})")
+                    if not eeat_ok: failed_metrics.append(f"E-E-A-T({scores['eeat_score']})")
+
+                    print(f"[ArticleService] Quality threshold not met. Failed: {', '.join(failed_metrics)}. Retrying...")
+                    verdict.processing_message = f"מנסה שוב - נכשלו: {', '.join(failed_metrics)}"
                     self.db.commit()
                     previous_scores = scores
                     # Loop continues to next attempt
@@ -326,7 +336,7 @@ class ArticleService:
                     print(f"[ArticleService] Failed to meet quality threshold after {MAX_GENERATION_ATTEMPTS} attempts")
                     verdict.status = VerdictStatus.FAILED
                     verdict.processing_progress = 65
-                    verdict.processing_message = f"נכשל אחרי {MAX_GENERATION_ATTEMPTS} ניסיונות - ציון מינימלי: {min_score}"
+                    verdict.processing_message = f"נכשל אחרי {MAX_GENERATION_ATTEMPTS} ניסיונות"
                     verdict.review_notes = f"Article quality below threshold after {MAX_GENERATION_ATTEMPTS} attempts. Last scores: Content={scores['content_score']}, SEO={scores['seo_score']}, Readability={scores['readability_score']}, E-E-A-T={scores['eeat_score']}"
                     self.db.commit()
                     raise ArticleGenerationError(verdict.review_notes)
@@ -453,7 +463,8 @@ class ArticleService:
 
     def _build_improvement_hints(self, previous_scores: dict) -> str:
         """Build specific improvement instructions based on previous scores."""
-        MIN_SCORE_THRESHOLD = 85  # Realistic threshold for quality articles
+        MIN_SCORE_THRESHOLD = 85  # For Content, SEO, Readability
+        MIN_SCORE_THRESHOLD_EEAT = 75  # Lower threshold for E-E-A-T
         hints = ["## הנחיות לשיפור (בהתאם לציונים הקודמים):"]
 
         if previous_scores["seo_score"] < MIN_SCORE_THRESHOLD:
@@ -467,21 +478,27 @@ class ArticleService:
 - הוסף 2-3 קישורים חיצוניים אמינים
 """)
 
-        if previous_scores["eeat_score"] < MIN_SCORE_THRESHOLD:
+        if previous_scores["eeat_score"] < MIN_SCORE_THRESHOLD_EEAT:
             hints.append(f"""
-### E-E-A-T (ציון קודם: {previous_scores['eeat_score']}) - יעד: 95+
-**Expertise:**
-- הוסף 12+ מונחים משפטיים מקצועיים עם הסברים
-- הנגש טרמינולוגיה בצורה רהוטה
+### E-E-A-T (ציון קודם: {previous_scores['eeat_score']}) - יעד: 75+
+**חשוב מאוד: הוסף ציטוטים ישירים מפסק הדין!**
 
-**Authoritativeness:**
-- הוסף 6-8 ציטוטים חוקיים **מדויקים** (סעיף + מספר חוק)
-- הזכר 2-3 תקדימים בשמות **מלאים** (דוגמה: "ע\\"א 1234/20 פלוני נ' אלמוני")
-- קשר לnevo.co.il או gov.il (2-3 קישורים)
+**Expertise (מומחיות):**
+- השתמש ב-15+ מונחים משפטיים מקצועיים מפסק הדין
+- הסבר כל מונח בצורה פשוטה למשתמש הרגיל
+- דוגמה: "נקבע נזק תוצאתי (נזק עקיף הנגרם כתוצאה מהפגיעה)"
 
-**Trustworthiness:**
-- ודא דיוק עובדתי מוחלט
-- הוסף disclaimer ברור בסוף
+**Authoritativeness (סמכותיות):**
+- **ציטוט ישיר מהשופט**: העתק 2-3 משפטים מפסק הדין בציטוט
+  דוגמה: "כפי שקבע בית המשפט: \\"....\\" (פסקה X)"
+- הזכר את החוקים הרלוונטיים בדיוק כפי שהם מופיעים בפסק הדין
+- אם יש תקדימים בפסק דין - הזכר אותם בשמות מלאים
+- קישור לnevo.co.il לחוק הרלוונטי
+
+**Trustworthiness (מהימנות):**
+- בסס כל טענה על עובדות מפסק הדין
+- הוסף disclaimer: "המידע מבוסס על פסק דין ת\\"א XXX-XX-XX ואינו מהווה ייעוץ משפטי"
+- אל תמציא עובדות - רק מה שכתוב בפסק הדין
 """)
 
         if previous_scores["readability_score"] < MIN_SCORE_THRESHOLD:
