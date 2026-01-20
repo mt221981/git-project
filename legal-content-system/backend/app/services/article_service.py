@@ -467,7 +467,7 @@ class ArticleService:
 
         if previous_scores["seo_score"] < MIN_SCORE_THRESHOLD:
             hints.append(f"""
-### 🔍 SEO (ציון קודם: {previous_scores['seo_score']}) - יעד: 85+
+### SEO (ציון קודם: {previous_scores['seo_score']}) - יעד: 85+
 
 **CRITICAL - תקן בדיוק את הבעיות הבאות:**
 
@@ -494,7 +494,7 @@ class ArticleService:
 
         if previous_scores["eeat_score"] < MIN_SCORE_THRESHOLD:
             hints.append(f"""
-### ⭐ E-E-A-T (ציון קודם: {previous_scores['eeat_score']}) - יעד: 85+
+### E-E-A-T (ציון קודם: {previous_scores['eeat_score']}) - יעד: 85+
 
 **CRITICAL - זה המדד הכי חשוב!**
 

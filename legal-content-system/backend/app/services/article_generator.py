@@ -305,7 +305,7 @@ class ArticleGenerator:
         return f"""צור מאמר משפטי SEO-אופטימלי מקצועי על בסיס נתוני פסק הדין הבאים.
 
 {improvement_section}
-## 🎯 דרישות קריטיות - חובה למילוי!
+## דרישות קריטיות - חובה למילוי!
 
 ### E-E-A-T (ציון יעד: 85+):
 - **צטט 8-10 סעיפי חוק ספציפיים** עם מספרים מדויקים
