@@ -268,18 +268,18 @@ async def anonymize_verdict(
     service: VerdictService = Depends(get_verdict_service)
 ):
     """
-    Anonymize a verdict using Claude API.
+    Process verdict through full pipeline (skip anonymization).
 
     This endpoint will:
     1. Validate the verdict exists and is in correct status
-    2. Set status to 'anonymizing'
-    3. Start background processing
+    2. Set status to 'analyzing'
+    3. Start full pipeline: analyze → generate article (skip anonymization)
     4. Return immediately (client should poll for updates)
 
-    The verdict must be in 'extracted' status before anonymization.
+    The verdict must be in 'extracted' status before processing.
 
     Returns:
-        Verdict with status 'anonymizing'
+        Verdict with status 'analyzing'
     """
     verdict = service.get_verdict(verdict_id)
 
@@ -296,17 +296,18 @@ async def anonymize_verdict(
             detail="Verdict must be extracted before anonymization"
         )
 
-    if verdict.status in [VerdictStatus.ANONYMIZING, VerdictStatus.ANONYMIZED]:
+    if verdict.status in [VerdictStatus.ANALYZING, VerdictStatus.ANALYZED,
+                          VerdictStatus.ARTICLE_CREATING, VerdictStatus.ARTICLE_CREATED]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Verdict is already anonymized or being anonymized"
+            detail="Verdict is already being processed or completed"
         )
 
-    # Set status to anonymizing
-    verdict = service.update_verdict_status(verdict_id, VerdictStatus.ANONYMIZING)
+    # Set status to analyzing (skip anonymization)
+    verdict = service.update_verdict_status(verdict_id, VerdictStatus.ANALYZING)
 
-    # Start background task
-    background_tasks.add_task(run_anonymization_background, verdict_id)
+    # Start full pipeline (skips anonymization, goes directly to analysis)
+    background_tasks.add_task(run_full_pipeline_background, verdict_id)
 
     return VerdictResponse.model_validate(verdict)
 
@@ -383,12 +384,12 @@ async def reprocess_verdict(
     This endpoint will:
     1. Reset verdict to 'extracted' status, clearing all downstream data
     2. Delete any associated articles
-    3. Run the full pipeline: anonymize → analyze → generate article
+    3. Run the full pipeline: analyze → generate article (skip anonymization)
 
     Useful for reprocessing verdicts that failed or need to be updated.
 
     Returns:
-        Verdict with status 'extracted' (processing begins in background)
+        Verdict with status 'analyzing' (processing begins in background)
     """
     verdict = service.get_verdict(verdict_id)
 
