@@ -80,10 +80,10 @@ class AnalysisService:
         if not verdict:
             raise ValueError(f"Verdict with ID {verdict_id} not found")
 
-        # Check if verdict has been anonymized (ANALYZING is also allowed - set by endpoint before background task)
-        if verdict.status not in [VerdictStatus.ANONYMIZED, VerdictStatus.ANALYZED, VerdictStatus.ANALYZING]:
+        # Check if verdict has been extracted (ANALYZING is also allowed - set by endpoint before background task)
+        if verdict.status not in [VerdictStatus.EXTRACTED, VerdictStatus.ANALYZED, VerdictStatus.ANALYZING]:
             raise ValueError(
-                f"Verdict must be anonymized before analysis. Current status: {verdict.status}"
+                f"Verdict must be extracted before analysis. Current status: {verdict.status}"
             )
 
         # Update status to analyzing (only if not already set by endpoint)
@@ -97,8 +97,8 @@ class AnalysisService:
             verdict.processing_message = "מתחיל ניתוח משפטי..."
             self.db.commit()
 
-            # Use anonymized text for analysis
-            text_to_analyze = verdict.anonymized_text or verdict.cleaned_text or verdict.original_text
+            # Use cleaned or original text for analysis (skip anonymization)
+            text_to_analyze = verdict.cleaned_text or verdict.original_text
 
             # Step 1: Extract legal basis (35-45%)
             verdict.processing_progress = 40

@@ -232,22 +232,17 @@ def run_anonymization_background(verdict_id: int):
 
 
 def run_full_pipeline_background(verdict_id: int):
-    """Run full processing pipeline: anonymize → analyze → generate article."""
+    """Run full processing pipeline: analyze → generate article (skip anonymization)."""
     db = SessionLocal()
     try:
         from app.models.verdict import Verdict
 
-        # Step 1: Anonymize
-        print(f"[Background] Starting anonymization for verdict {verdict_id}")
-        anon_service = AnonymizationService(db)
-        anon_service.anonymize_verdict(verdict_id)
-
-        # Step 2: Analyze
+        # Step 1: Analyze (directly from cleaned/original text)
         print(f"[Background] Starting analysis for verdict {verdict_id}")
         analysis_service = AnalysisService(db)
         analysis_service.analyze_verdict(verdict_id)
 
-        # Step 3: Generate Article
+        # Step 2: Generate Article
         print(f"[Background] Starting article generation for verdict {verdict_id}")
         article_service = ArticleService(db)
         article_service.generate_article_from_verdict(verdict_id)
@@ -419,8 +414,8 @@ async def reprocess_verdict(
             detail="Failed to reset verdict"
         )
 
-    # Set status to ANONYMIZING so frontend can track progress
-    verdict = service.update_verdict_status(verdict_id, VerdictStatus.ANONYMIZING)
+    # Set status to ANALYZING so frontend can track progress (skip anonymization)
+    verdict = service.update_verdict_status(verdict_id, VerdictStatus.ANALYZING)
 
     # Start full pipeline in background
     background_tasks.add_task(run_full_pipeline_background, verdict_id)

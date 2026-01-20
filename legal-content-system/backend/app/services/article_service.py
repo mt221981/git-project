@@ -243,8 +243,7 @@ class ArticleService:
 
             # Quality control retry loop
             MAX_GENERATION_ATTEMPTS = 3  # Reduced from 5 for better performance
-            MIN_SCORE_THRESHOLD = 85  # Quality threshold - 85+ for most metrics
-            MIN_SCORE_THRESHOLD_EEAT = 75  # Lower threshold for E-E-A-T (harder to achieve)
+            MIN_SCORE_THRESHOLD = 85  # Quality threshold for all metrics (uniform)
             previous_scores = None
 
             # Set initial progress for article generation
@@ -297,17 +296,17 @@ class ArticleService:
                 # Score article
                 scores = self.score_article(article_content)
 
-                # Separate check for E-E-A-T (has lower threshold)
+                # Check all metrics against uniform threshold
                 content_ok = scores["content_score"] >= MIN_SCORE_THRESHOLD
                 seo_ok = scores["seo_score"] >= MIN_SCORE_THRESHOLD
                 readability_ok = scores["readability_score"] >= MIN_SCORE_THRESHOLD
-                eeat_ok = scores["eeat_score"] >= MIN_SCORE_THRESHOLD_EEAT
+                eeat_ok = scores["eeat_score"] >= MIN_SCORE_THRESHOLD
 
                 all_passed = content_ok and seo_ok and readability_ok and eeat_ok
                 min_score = min(scores["content_score"], scores["seo_score"], scores["readability_score"], scores["eeat_score"])
 
                 print(f"[ArticleService] Scores - Content: {scores['content_score']}, SEO: {scores['seo_score']}, Readability: {scores['readability_score']}, E-E-A-T: {scores['eeat_score']}")
-                print(f"[ArticleService] Thresholds - Content/SEO/Readability: {MIN_SCORE_THRESHOLD}, E-E-A-T: {MIN_SCORE_THRESHOLD_EEAT}")
+                print(f"[ArticleService] Quality threshold (all metrics): {MIN_SCORE_THRESHOLD}")
 
                 # Check if quality threshold met
                 if all_passed:
@@ -463,73 +462,58 @@ class ArticleService:
 
     def _build_improvement_hints(self, previous_scores: dict) -> str:
         """Build specific improvement instructions based on previous scores."""
-        MIN_SCORE_THRESHOLD = 85  # For Content, SEO, Readability
-        MIN_SCORE_THRESHOLD_EEAT = 75  # Lower threshold for E-E-A-T
+        MIN_SCORE_THRESHOLD = 85  # Uniform threshold for all metrics
         hints = ["## הנחיות לשיפור (בהתאם לציונים הקודמים):"]
 
         if previous_scores["seo_score"] < MIN_SCORE_THRESHOLD:
             hints.append(f"""
-### SEO (ציון קודם: {previous_scores['seo_score']}) - יעד: 95+
-- הגדל צפיפות מילות מפתח ל-1.2%-1.5% (20-25 הזכרות)
-- ודא מילת מפתח בפסקה הראשונה (100 מילים ראשונות)
-- ודא מילת מפתח בכל H2
-- שפר Meta Description: מילת מפתח + ערך + CTA (150-160 תווים)
+### SEO (ציון קודם: {previous_scores['seo_score']}) - יעד: 85+
+- הגדל צפיפות מילות מפתח ל-1.2%-1.5%
+- ודא מילת מפתח בפסקה הראשונה
+- שפר Meta Description (150-160 תווים)
 - הוסף 3-5 קישורים פנימיים
-- הוסף 2-3 קישורים חיצוניים אמינים
+- הוסף 2-3 קישורים חיצוניים (nevo.co.il, gov.il)
 """)
 
-        if previous_scores["eeat_score"] < MIN_SCORE_THRESHOLD_EEAT:
+        if previous_scores["eeat_score"] < MIN_SCORE_THRESHOLD:
             hints.append(f"""
-### E-E-A-T (ציון קודם: {previous_scores['eeat_score']}) - יעד: 75+
-**חשוב מאוד: הוסף ציטוטים ישירים מפסק הדין!**
+### E-E-A-T (ציון קודם: {previous_scores['eeat_score']}) - יעד: 85+
 
 **Expertise (מומחיות):**
-- השתמש ב-15+ מונחים משפטיים מקצועיים מפסק הדין
-- הסבר כל מונח בצורה פשוטה למשתמש הרגיל
-- דוגמה: "נקבע נזק תוצאתי (נזק עקיף הנגרם כתוצאה מהפגיעה)"
+- השתמש במינוח משפטי מקצועי
+- הסבר מונחים משפטיים בפשטות
 
 **Authoritativeness (סמכותיות):**
-- **ציטוט ישיר מהשופט**: העתק 2-3 משפטים מפסק הדין בציטוט
-  דוגמה: "כפי שקבע בית המשפט: \\"....\\" (פסקה X)"
-- הזכר את החוקים הרלוונטיים בדיוק כפי שהם מופיעים בפסק הדין
-- אם יש תקדימים בפסק דין - הזכר אותם בשמות מלאים
-- קישור לnevo.co.il לחוק הרלוונטי
+- צטט 6-8 סעיפי חוק מדויקים עם מספרים
+- אזכר עקרונות משפטיים כלליים (ללא מספרי תיקים!)
+- השתמש בביטויים: "על פי הפסיקה", "ההלכה הפסוקה קובעת"
+- קישור לnevo.co.il או gov.il
 
 **Trustworthiness (מהימנות):**
-- בסס כל טענה על עובדות מפסק הדין
-- הוסף disclaimer: "המידע מבוסס על פסק דין ת\\"א XXX-XX-XX ואינו מהווה ייעוץ משפטי"
-- אל תמציא עובדות - רק מה שכתוב בפסק הדין
+- בסס טענות על העובדות בפסק הדין
+- הוסף disclaimer: "המידע אינו מהווה ייעוץ משפטי"
+- **חשוב**: אל תצטט מספרי הליך ספציפיים (לא "ע"א 123/45")
+- **חשוב**: אל תצטט שמות פסקי דין (לא "פלוני נ' אלמוני")
 """)
 
         if previous_scores["readability_score"] < MIN_SCORE_THRESHOLD:
             hints.append(f"""
-### קריאות (ציון קודם: {previous_scores['readability_score']}) - יעד: 95+
-- קצר משפטים - **ממוצע 15 מילים** (לא יותר!)
-- פרק לפסקאות קצרות - **2-3 שורות מקסימום**
+### קריאות (ציון קודם: {previous_scores['readability_score']}) - יעד: 85+
+- קצר משפטים - ממוצע 15 מילים
+- פרק לפסקאות קצרות - 2-3 שורות מקסימום
 - הוסף 5-6 רשימות תבליטים
-- הוסף 10-12 מילות מעבר (לכן, בנוסף, מאידך, יתר על כן)
-- ודא זרימה טבעית וקולחת
+- הוסף מילות מעבר טבעיות
 """)
 
         if previous_scores["content_score"] < MIN_SCORE_THRESHOLD:
             hints.append(f"""
-### תוכן (ציון קודם: {previous_scores['content_score']}) - יעד: 95+
-**Hook שיווקי:**
-- פתיחה חזקה שמושכת - אל תסכם, תזקק משמעות!
-- השב על "למה זה חשוב לי?" בפסקה הראשונה
-
-**ערך למשתמש:**
-- הוסף 200-300 מילים של תוכן מעשי
-- התמקד ב"איך זה משפיע עלי?"
-- הוסף 2-3 דוגמאות מעשיות או תרחישים
-- הרחב את סעיף "מה אפשר ללמוד בפועל"
-
-**כותרות מגנטיות:**
-- שנה כותרות H2 לכותרות שמבטיחות ערך
-- דוגמה: במקום "הרקע העובדתי" → "מה קרה במציאות?"
-
-**CTA:**
-- הוסף קריאה לפעולה חזקה בסיום המאמר
+### תוכן (ציון קודם: {previous_scores['content_score']}) - יעד: 85+
+- פסקה פותחת חזקה שמסבירה את הרלוונטיות
+- רקע עובדתי של המקרה
+- ניתוח החלטת בית המשפט
+- השלכות מעשיות
+- סעיף FAQ (8-10 שאלות)
+- סיכום + קריאה לפעולה
 """)
 
         return "\n".join(hints)
