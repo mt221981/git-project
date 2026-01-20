@@ -61,12 +61,12 @@ export default function VerdictDetail() {
     queryKey: ['verdict', id],
     queryFn: () => verdictApi.get(Number(id)).then((res) => res.data),
     enabled: !!id,
-    refetchInterval: isProcessing ? 2000 : false, // Poll every 2s during processing
+    refetchInterval: isProcessing ? 1000 : false, // Poll every 1s during processing for responsive updates
   });
 
   // Update processing state based on verdict status
   useEffect(() => {
-    const processingStatuses = ['anonymizing', 'analyzing', 'article_creating'];
+    const processingStatuses = ['analyzing', 'article_creating'];
 
     if (processingStatuses.includes(verdict?.status || '')) {
       setIsProcessing(true);
@@ -97,8 +97,8 @@ export default function VerdictDetail() {
         setIsProcessing(false);
         setOperationMessage('המאמר נוצר אך לא ניתן לטעון אותו');
       });
-    } else if (isProcessing && !['anonymizing', 'analyzing', 'article_creating', 'failed'].includes(verdict?.status || '')) {
-      // Operation completed successfully (anonymized, analyzed, etc.)
+    } else if (isProcessing && !['analyzing', 'article_creating', 'failed'].includes(verdict?.status || '')) {
+      // Operation completed successfully (analyzed, etc.)
       setIsProcessing(false);
       setOperationProgress(100);
       setOperationMessage('הושלם!');
@@ -115,13 +115,13 @@ export default function VerdictDetail() {
     onMutate: () => {
       setIsProcessing(true);
       setOperationProgress(5);
-      setOperationMessage('מתחיל אנונימיזציה...');
+      setOperationMessage('מתחיל עיבוד...');
       setOperationStartTime(Date.now());
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['verdict', id] });
       setOperationProgress(100);
-      setOperationMessage('האנונימיזציה הושלמה בהצלחה!');
+      setOperationMessage('העיבוד הושלם בהצלחה!');
     },
     onError: (error: Error) => {
       setIsProcessing(false);
@@ -359,7 +359,7 @@ export default function VerdictDetail() {
                     מעבד אוטומטית...
                   </span>
                 ) : (
-                  'עבד אוטומטית (אנונימיזציה + ניתוח + יצירת מאמר)'
+                  'עבד אוטומטית (ניתוח + יצירת מאמר)'
                 )}
               </button>
             )}
@@ -373,10 +373,10 @@ export default function VerdictDetail() {
                 {anonymizeMutation.isPending ? (
                   <span className="flex items-center gap-2">
                     <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
-                    מאנוניזם...
+                    מעבד...
                   </span>
                 ) : (
-                  'אנוניזם טקסט'
+                  'עבד אוטומטית (ניתוח + מאמר)'
                 )}
               </button>
             )}
