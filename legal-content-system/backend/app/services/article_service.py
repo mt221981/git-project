@@ -243,7 +243,7 @@ class ArticleService:
 
             # Quality control retry loop
             MAX_GENERATION_ATTEMPTS = 5
-            MIN_SCORE_THRESHOLD = 70  # Balanced threshold for quality articles
+            MIN_SCORE_THRESHOLD = 85  # Quality threshold - 85+ for all metrics
             previous_scores = None
 
             # Set initial progress for article generation
