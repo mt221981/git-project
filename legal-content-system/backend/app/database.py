@@ -40,6 +40,6 @@ def init_db() -> None:
     Call this function when the application starts.
     """
     # Import all models here to ensure they are registered with Base
-    from app.models import Verdict, Article, WordPressSite
+    from app.models import Verdict, Article, WordPressSite, Batch
 
     Base.metadata.create_all(bind=engine)

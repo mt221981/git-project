@@ -334,15 +334,53 @@ class WordPressClient:
         Note:
             Requires Yoast SEO plugin installed and REST API enabled
         """
+        # Use Yoast REST API directly
+        yoast_data = {
+            "yoast_head_json": {}
+        }
+
+        # Also try standard meta approach
         meta = {}
         if title:
+            meta["_yoast_wpseo_title"] = title
             meta["yoast_wpseo_title"] = title
         if description:
+            meta["_yoast_wpseo_metadesc"] = description
             meta["yoast_wpseo_metadesc"] = description
         if focus_keyword:
+            meta["_yoast_wpseo_focuskw"] = focus_keyword
             meta["yoast_wpseo_focuskw"] = focus_keyword
 
-        return self.update_post(post_id, meta=meta)
+        print(f"[Yoast] Sending meta update with field names: {list(meta.keys())}")
+
+        # Try updating via standard post meta
+        result = self.update_post(post_id, meta=meta)
+        print(f"[Yoast] Standard meta response: {result.get('meta', 'NO META')}")
+
+        # Try Yoast-specific REST endpoint
+        try:
+            yoast_url = f"{self.site_url}/wp-json/yoast/v1/post/{post_id}"
+            yoast_payload = {
+                "wpseo_title": title or "",
+                "wpseo_metadesc": description or "",
+                "wpseo_focuskw": focus_keyword or ""
+            }
+            print(f"[Yoast] Trying Yoast REST API: {yoast_url}")
+            yoast_response = requests.put(
+                yoast_url,
+                auth=self.auth,
+                json=yoast_payload,
+                timeout=30
+            )
+            print(f"[Yoast] Yoast REST API response: {yoast_response.status_code}")
+            if yoast_response.status_code == 200:
+                print("[Yoast] Successfully updated via Yoast REST API")
+            else:
+                print(f"[Yoast] Yoast REST API failed: {yoast_response.text[:200]}")
+        except Exception as e:
+            print(f"[Yoast] Yoast REST API error: {e}")
+
+        return result
 
     def update_rankmath_seo(
         self,

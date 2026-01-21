@@ -309,19 +309,32 @@ class WordPressService:
 
             # Update SEO plugin fields if applicable
             if site.seo_plugin == SEOPlugin.YOAST:
-                client.update_yoast_seo(
-                    post_id=post_data["id"],
-                    title=article.meta_title,
-                    description=article.meta_description,
-                    focus_keyword=article.focus_keyword
-                )
+                print(f"[WordPress] Updating Yoast SEO for post {post_data['id']}")
+                print(f"[WordPress] meta_title: {article.meta_title}")
+                print(f"[WordPress] meta_description: {article.meta_description}")
+                print(f"[WordPress] focus_keyword: {article.focus_keyword}")
+                try:
+                    client.update_yoast_seo(
+                        post_id=post_data["id"],
+                        title=article.meta_title,
+                        description=article.meta_description,
+                        focus_keyword=article.focus_keyword
+                    )
+                    print("[WordPress] Yoast SEO updated successfully")
+                except Exception as e:
+                    print(f"[WordPress] Yoast SEO update failed: {e}")
             elif site.seo_plugin == SEOPlugin.RANKMATH:
-                client.update_rankmath_seo(
-                    post_id=post_data["id"],
-                    title=article.meta_title,
-                    description=article.meta_description,
-                    focus_keyword=article.focus_keyword
-                )
+                print(f"[WordPress] Updating RankMath SEO for post {post_data['id']}")
+                try:
+                    client.update_rankmath_seo(
+                        post_id=post_data["id"],
+                        title=article.meta_title,
+                        description=article.meta_description,
+                        focus_keyword=article.focus_keyword
+                    )
+                    print("[WordPress] RankMath SEO updated successfully")
+                except Exception as e:
+                    print(f"[WordPress] RankMath SEO update failed: {e}")
 
             # Update article with WordPress info
             article.wordpress_post_id = post_data["id"]

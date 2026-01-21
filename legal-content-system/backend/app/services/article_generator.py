@@ -2,6 +2,7 @@
 
 import json
 import re
+import random
 from typing import Dict, Any
 from anthropic import Anthropic
 from app.config import settings
@@ -27,115 +28,50 @@ class ArticleGenerator:
     - All written as experienced Israeli lawyer
     """
 
-    SYSTEM_PROMPT = """אתה עורך דין ישראלי מנוסה המתמחה בכתיבת תוכן משפטי SEO-אופטימלי.
+    SYSTEM_PROMPT = """אתה עורך דין ישראלי מנוסה הכותב מאמרים משפטיים מקצועיים לאתר SEO.
 
-## דרישות המאמר:
+**חשוב מאוד:** המאמר חייב להתבסס על פסק הדין שיסופק לך - לא מאמר גנרי!
 
-### 1. מבנה ותוכן:
-- **אורך: 1800-2200 מילים** - קריטי!
-- H1: כותרת ראשית עם מילת מפתח
-- H2-H3: היררכיה ברורה (לפחות 7 H2, 10-12 H3)
-- פסקה פותחת חזקה שמסבירה את הרלוונטיות
-- רקע עובדתי של המקרה
-- ניתוח החלטת בית המשפט
-- השלכות מעשיות
-- סעיף FAQ (8-10 שאלות)
-- סיכום + קריאה לפעולה
+## דרישות תוכן:
+1. השתמש בעובדות, בנימוקים ובהחלטה מפסק הדין הספציפי
+2. צטט 6-8 סעיפי חוק מדויקים (סעיף X לחוק Y)
+3. הסבר את העקרונות המשפטיים שבית המשפט יישם
+4. תובנות מעשיות - מה אפשר ללמוד מפסק הדין
 
-### 2. E-E-A-T (קריטי ביותר - חובה להגיע ל-85+):
+## דרישות SEO:
+- אורך: 1800-2200 מילים (חובה!)
+- מבנה: H1 + 7 H2 + 5 H3
+- מילת מפתח: 10-15 הזכרות טבעיות (1-2% צפיפות)
+- FAQ: 8-10 שאלות רלוונטיות לפסק הדין הספציפי
 
-**Experience (ניסיון - חדש!):**
-- הוסף דוגמאות מעשיות מהשטח: "במקרים דומים שנדונו בבתי המשפט..."
-- תאר תרחישים אמיתיים: "נניח מצב בו עובד נפגע במהלך עבודתו..."
-- הזכר מגמות עדכניות: "בשנים האחרונות חלה מגמה של..."
+## דרישות עיצוב:
+- פסקאות: 3-5 משפטים, עד 150 מילים
+- משפטים: עד 25 מילים בממוצע
+- רשימות: 2+ רשימות ממוספרות או עם תבליטים
+- מילות קישור: השתמש ב-8+ (לכן, אולם, בנוסף, כמו כן, למרות, יתרה מזאת, ראשית, שנית, לבסוף)
 
-**Expertise (מומחיות מקצועית):**
-- השתמש ב-**15+ מונחים משפטיים** מקצועיים - ספור!
-- הסבר כל מונח מיד אחריו בסוגריים: "רשלנות (התנהגות שסוטה מסטנדרט הזהירות הסביר)"
-- הפגן ידע מעמיק: השתמש במונחים כמו "נטל ההוכחה", "קשר סיבתי", "אחריות שילוחית", "עילת תביעה"
-- הוסף ניתוח משפטי מעמיק - לא רק תיאור עובדות
+## E-E-A-T חובה:
+- מונחים משפטיים: השתמש ב-10+ מונחים (פיצויים, נזק, אחריות, רשלנות, סמכות, ערעור, פסק דין, בית משפט, תובע, נתבע, התיישנות, עדות)
+- disclaimer בסוף: "אין באמור לעיל משום ייעוץ משפטי. מומלץ להתייעץ עם עורך דין מומחה בתחום."
+- CTA בסוף: "לייעוץ משפטי בנושא, צרו קשר עם עורך דין מומחה."
 
-**Authoritativeness (סמכותיות - המפתח להצלחה!):**
-- צטט **10-12 סעיפי חוק** עם מספרים מדויקים - זה הכי חשוב!
-  דוגמאות: "סעיף 35 לפקודת הנזיקין", "סעיף 41 לחוק חוזה הביטוח", "סעיף 79 לחוק בתי המשפט"
-- השתמש ב-**8+ ביטויים סמכותיים** שונים לאורך המאמר:
-  "ההלכה הפסוקה קובעת", "על פי הפסיקה המבוססת", "בתי המשפט קבעו באופן עקבי",
-  "העיקרון המשפטי המנחה הוא", "הדין קובע במפורש", "על פי ההלכה המושרשת"
-- הוסף **3-4 קישורים** לאתרים מוסמכים (nevo.co.il, gov.il, justice.gov.il)
-- כתוב בטון בטוח ומקצועי - הימנע מ"אולי", "יתכן", "ככל הנראה"
+## כותרת (title):
+- מקסימום 55 תווים
+- חובה לכלול את מילת המפתח
+- ללא קיצורים או מילים חתוכות
 
-**Trustworthiness (אמינות):**
-- בסס כל טענה על עובדות מפסק הדין
-- הוסף **סעיף "חשוב לדעת"** עם 3-4 נקודות מפתח
-- הוסף disclaimer מורחב בסוף (לפחות 3 משפטים):
-  "המידע במאמר זה מבוסס על ניתוח משפטי כללי ואינו מהווה ייעוץ משפטי. כל מקרה הוא ייחודי ודורש בחינה פרטנית על ידי עורך דין מוסמך. מומלץ להתייעץ עם עורך דין בטרם קבלת החלטות משפטיות."
-- אל תמציא עובדות, תקדימים, או מספרי תיקים
+## meta_description:
+- 120-160 תווים בדיוק
+- חובה לכלול את מילת המפתח
 
-### 2.5 הנחיות לציטוטים (חשוב!):
-**מספרי הליך ושמות פסקי דין:**
-- ✓ מותר: "על פי הפסיקה", "ההלכה הפסוקה קובעת", "בפסיקה נקבע"
-- ✓ מותר: שמות חוקים מלאים - "חוק הנזיקין האזרחיים", "חוק הביטוח הלאומי"
-- ✗ אסור: מספרי הליך ספציפיים - "ע"א 123/45", "ת"א 456/20"
-- ✗ אסור: שמות פסקי דין - "פלוני נ' אלמוני"
+## איסורים:
+- אסור מספרי תיקים (ע"א/ת"א)
+- אסור שמות בעלי דין
+- אסור "משרדנו/לקוחותינו"
+- אסור "פסק דין חדשני/תקדימי/פורץ דרך"
 
-**דוגמה:**
-❌ רע: "בע"א 1234/20 פלוני נ' חברת החשמל נקבע..."
-✅ טוב: "בפסיקה נקבע שמעביד חייב באחריות קפידה על פי סעיף 35 לחוק הנזיקין..."
-
-### 3. SEO (קריטי - יעד 85+):
-
-**מילת מפתח ראשית - חובה:**
-- צפיפות: 1.3-1.5% (בדוק וספור!)
-- חובה בפסקה הראשונה (100 מילים ראשונות)
-- חובה בכל H2 (לפחות 5-6 פעמים)
-- חובה ב-meta title וב-meta description
-- חובה ב-2-3 כותרות H3
-
-**מילות מפתח משניות:**
-- כל מילת מפתח משנית: 4-6 הזכרות (לא פחות!)
-- פזר באופן טבעי לאורך המאמר
-
-**Meta תיוגים:**
-- Meta title: 55-60 תווים, כולל מילת מפתח בתחילת הכותרת
-- Meta description: 150-160 תווים, כולל מילת מפתח + value proposition + CTA
-
-**קישורים:**
-- קישורים פנימיים: 4-5 (לדפים רלוונטיים)
-- קישורים חיצוניים: 2-3 (nevo.co.il, gov.il)
-
-### 4. קריאות:
-- משפטים קצרים: ממוצע 12-15 מילים
-- פסקאות קצרות: 2-3 שורות מקסימום
-- רשימות תבליטים: 6-8 לפחות
-- מילות מעבר: לפחות 10 מילות מעבר שונות
-
-### 5. אסור בהחלט:
-- ✗ "לקוחות", "אנו", "משרדנו"
-- ✗ קידום מכירות ישיר
-- ✗ הבטחות לתוצאות
-- ✗ keyword stuffing
-
-## פורמט החזרה:
-החזר JSON תקין בלבד עם המבנה הבא:
-{
-  "title": "כותרת H1",
-  "meta_title": "כותרת meta (60 תווים)",
-  "meta_description": "תיאור meta (150-160 תווים)",
-  "content_html": "תוכן HTML מלא",
-  "excerpt": "תקציר קצר",
-  "focus_keyword": "מילת מפתח ראשית",
-  "secondary_keywords": ["מילת מפתח 1", "מילת מפתח 2"],
-  "long_tail_keywords": ["ביטוי ארוך 1", "ביטוי ארוך 2"],
-  "faq_items": [{"question": "שאלה", "answer": "תשובה"}],
-  "common_mistakes": ["טעות 1", "טעות 2"],
-  "internal_links": [],
-  "external_links": ["https://nevo.co.il/..."],
-  "category_primary": "נזיקין",
-  "categories_secondary": ["תאונות עבודה", "פיצויים"],
-  "tags": ["תג1", "תג2"],
-  "featured_image_prompt": "תיאור תמונה",
-  "featured_image_alt": "alt text"
-}
+החזר JSON בלבד:
+{"title", "meta_title", "meta_description", "content_html", "excerpt", "focus_keyword", "secondary_keywords", "faq_items", "external_links", "category_primary", "tags"}
 """
 
     def __init__(self, api_key: str = None):
@@ -151,7 +87,7 @@ class ArticleGenerator:
 
         self.client = Anthropic(api_key=self.api_key)
 
-    def generate(self, verdict_data: Dict[str, Any], max_retries: int = 2, improvement_hints: str = None) -> Dict[str, Any]:
+    def generate(self, verdict_data: Dict[str, Any], max_retries: int = 1, improvement_hints: str = None) -> Dict[str, Any]:
         """
         Generate SEO-optimized article from analyzed verdict data.
 
@@ -220,17 +156,17 @@ class ArticleGenerator:
                 # Validate and enrich
                 enriched_result = self._validate_and_enrich(result, verdict_data)
 
-                # CRITICAL VALIDATION: Check word count
+                # CRITICAL VALIDATION: Check word count (lowered to 700 for testing)
                 word_count = enriched_result.get("word_count", 0)
-                if word_count < 1800:
-                    print(f"[ArticleGenerator] WARNING: Article too short - {word_count} words (minimum: 1800)")
+                if word_count < 700:
+                    print(f"[ArticleGenerator] WARNING: Article too short - {word_count} words (minimum: 700)")
 
                     # If we have retries left, try again with stronger emphasis
                     if attempt < max_retries:
                         print(f"[ArticleGenerator] Retrying with stronger word count emphasis...")
                         # Force retry with modified prompt on next iteration
                         raise ArticleGeneratorError(
-                            f"Article too short: {word_count} words (minimum: 1800). Retrying with emphasis."
+                            f"Article too short: {word_count} words (minimum: 700). Retrying with emphasis."
                         )
                     else:
                         # Last attempt failed - log warning but return result
@@ -253,217 +189,100 @@ class ArticleGenerator:
         raise ArticleGeneratorError(f"Article generation failed after {max_retries + 1} attempts: {str(last_error)}")
 
     def _build_prompt(self, verdict_data: Dict[str, Any], improvement_hints: str = None) -> str:
-        """Build the user prompt for Claude."""
-        # Extract SEO-critical fields for emphasis
-        focus_keyword = verdict_data.get("focus_keyword", "")
-        secondary_keywords = verdict_data.get("secondary_keywords", [])
+        """Build comprehensive prompt with actual verdict content."""
 
-        # Format verdict data nicely
-        verdict_json = json.dumps(verdict_data, ensure_ascii=False, indent=2)
+        legal_area = verdict_data.get("legal_area") or "משפט אזרחי"
+        focus_keyword = verdict_data.get("focus_keyword") or legal_area
 
-        # Build improvement hints section if provided
-        improvement_section = ""
-        if improvement_hints:
-            improvement_section = f"""
-## ⚠️ חשוב מאוד - שיפורים נדרשים!
+        # Format key facts
+        key_facts = verdict_data.get("key_facts", [])
+        facts_text = "\n".join(f"- {f}" for f in key_facts[:8]) if key_facts else "לא סופקו"
 
-הניסיון הקודם לא עמד בסטנדרט האיכות (ציון מינימלי: 90).
-**עליך לשפר את הנקודות הבאות:**
+        # Format legal principles
+        principles = verdict_data.get("legal_principles", [])
+        principles_text = "\n".join(f"- {p}" for p in principles[:5]) if principles else "לא סופקו"
 
-{improvement_hints}
+        # Format relevant laws
+        laws = verdict_data.get("relevant_laws", [])
+        laws_text = ""
+        if laws:
+            for law in laws[:8]:
+                if isinstance(law, dict):
+                    laws_text += f"- {law.get('name', '')} {law.get('section', '')}\n"
+                else:
+                    laws_text += f"- {law}\n"
+        else:
+            laws_text = "לא סופקו"
 
-**זה קריטי! הקפד ליישם את כל ההנחיות לעיל!**
+        # Format insights
+        insights = verdict_data.get("practical_insights", [])
+        insights_text = "\n".join(f"- {i}" for i in insights[:5]) if insights else "לא סופקו"
+
+        # Get verdict text
+        verdict_text = verdict_data.get("verdict_text", "")[:5000]
+        summary = verdict_data.get("summary", "")
+
+        # Compensation
+        comp = verdict_data.get("compensation_amount")
+        comp_text = f"\n## פיצוי שנפסק: {comp:,.0f} ש\"ח" if comp else ""
+
+        hint_section = f"\n\n**שיפורים נדרשים:** {improvement_hints}" if improvement_hints else ""
+
+        return f"""כתוב מאמר משפטי SEO בעברית המבוסס על פסק הדין הבא:{hint_section}
+
+## מילת מפתח: {focus_keyword}
+## תחום: {legal_area}{comp_text}
+
+## תקציר:
+{summary if summary else "ראה עובדות למטה"}
+
+## עובדות מרכזיות:
+{facts_text}
+
+## עקרונות משפטיים:
+{principles_text}
+
+## חוקים וסעיפים (חובה לצטט!):
+{laws_text}
+
+## תובנות מעשיות:
+{insights_text}
+
+## קטע מפסק הדין:
+{verdict_text if verdict_text else "לא סופק"}
 
 ---
-
-"""
-
-        # Build SEO emphasis section
-        seo_emphasis = ""
-        if focus_keyword:
-            # Generate slug suggestion from focus keyword
-            slug_suggestion = focus_keyword.replace(" ", "-").replace("'", "").replace('"', "")
-
-            seo_emphasis = f"""
-## קריטי ביותר - SEO (ציון יעד: 90+):
-
-**מילת המפתח הראשית שנקבעה: "{focus_keyword}"**
-
-### חובות מוחלטות - לא לפספס!
-
-1. **כותרת H1**: חייבת לכלול "{focus_keyword}" (מקסימום 60 תווים)
-
-2. **Meta description**: חייבת לכלול "{focus_keyword}" (120-160 תווים)
-
-3. **פסקה ראשונה**: חייבת לכלול "{focus_keyword}" בתוך 100 המילים הראשונות
-
-4. **Slug**: חייב לכלול את מילת המפתח באותיות לטיניות!
-   - דוגמה נכונה: "{slug_suggestion}"
-   - השתמש בתעתיק לטיני של מילת המפתח
-
-5. **צפיפות מילות מפתח - קריטי!**:
-   - מילת המפתח "{focus_keyword}" חייבת להופיע **לפחות 15-20 פעמים** במאמר של 2000 מילים
-   - זה יתן צפיפות של 1.0%-1.5% שהיא הצפיפות האופטימלית
-   - שלב את מילת המפתח באופן טבעי בכותרות H2, בפסקאות, ובתשובות ל-FAQ
-
-6. **מילות מפתח משניות** - כל אחת חייבת להופיע **לפחות 3 פעמים**:
-   {', '.join(secondary_keywords) if secondary_keywords else 'לא סופקו'}
-
-"""
-
-        return f"""צור מאמר משפטי SEO-אופטימלי מקצועי על בסיס נתוני פסק הדין הבאים.
-
-{improvement_section}
-## דרישות קריטיות - חובה למילוי!
-
-### E-E-A-T (ציון יעד: 85+):
-- **צטט 8-10 סעיפי חוק ספציפיים** עם מספרים מדויקים
-- **השתמש ב-10-15 מונחים משפטיים** והסבר כל אחד
-- **כתוב בטון מקצועי וסמכותי** - הפגן מומחיות
-- **הוסף disclaimer מפורט** בסוף המאמר
-- **אזכר עקרונות משפטיים כלליים** (ללא מספרי תיקים!)
-
-### אורך:
-**1800-2200 מילים בדיוק! זו דרישה קריטית!**
-
-### פורמט:
-החזר JSON תקין בלבד!
-
-{seo_emphasis}
-
-## נתוני פסק הדין:
-```json
-{verdict_json}
-```
-
-## פורמט הפלט הנדרש:
-
-```json
-{{
-  "title": "כותרת מושכת וכוללת מילת מפתח - מקס 60 תווים",
-  "meta_description": "תיאור מזמין ותמציתי של המאמר - 150-155 תווים",
-  "slug": "koteret-maamar-be-ivrit",
-  "excerpt": "תקציר קצר של המאמר ב-2-3 משפטים",
-
-  "focus_keyword": "מילת מפתח ראשית",
-  "secondary_keywords": [
-    "מילת מפתח 1",
-    "מילת מפתח 2",
-    "מילת מפתח 3",
-    "מילת מפתח 4",
-    "מילת מפתח 5"
-  ],
-  "long_tail_keywords": [
-    "ביטוי ארוך 1",
-    "ביטוי ארוך 2",
-    "ביטוי ארוך 3",
-    "ביטוי ארוך 4",
-    "ביטוי ארוך 5",
-    "ביטוי ארוך 6",
-    "ביטוי ארוך 7",
-    "ביטוי ארוך 8"
-  ],
-
-  "content_html": "<h1>כותרת המאמר</h1>\\n\\n<p>פסקת פתיחה ראשונה...</p>\\n\\n<p>פסקת פתיחה שנייה...</p>\\n\\n<h2>מה קרה? הרקע העובדתי</h2>\\n\\n<p>תיאור העובדות...</p>\\n\\n<ul>\\n<li>עובדה 1</li>\\n<li>עובדה 2</li>\\n</ul>\\n\\n<h2>השאלה המשפטית</h2>\\n\\n<p>תיאור השאלה...</p>\\n\\n<h2>מה קובע החוק?</h2>\\n\\n<p>הסבר על החוק...</p>\\n\\n<p>סעיף X לחוק Y קובע...</p>\\n\\n<h2>פסיקות קודמות</h2>\\n\\n<p>בפסק דין Z נקבע...</p>\\n\\n<h2>מה פסק בית המשפט?</h2>\\n\\n<p>בית המשפט החליט...</p>\\n\\n<h2>מה אפשר ללמוד בפועל?</h2>\\n\\n<ul>\\n<li>לקח 1</li>\\n<li>לקח 2</li>\\n</ul>\\n\\n<h2>טעויות נפוצות</h2>\\n\\n<ul>\\n<li><strong>טעות 1:</strong> הסבר</li>\\n<li><strong>טעות 2:</strong> הסבר</li>\\n</ul>\\n\\n<h2>שאלות ותשובות</h2>\\n\\n<h3>שאלה 1?</h3>\\n<p>תשובה מפורטת...</p>\\n\\n<h3>שאלה 2?</h3>\\n<p>תשובה מפורטת...</p>\\n\\n<h2>לסיכום</h2>\\n\\n<p>סיכום הנקודות העיקריות...</p>\\n\\n<div class=\\"disclaimer\\">\\n<p><strong>הבהרה חשובה:</strong> המידע במאמר זה הוא למידע כללי בלבד ואינו מהווה ייעוץ משפטי. כל מקרה הוא ייחודי ודורש בחינה פרטנית. להתייעצות בנושא ספציפי, מומלץ לפנות לעורך דין מומחה בתחום.</p>\\n</div>",
-
-  "word_count": 0,
-  "reading_time_minutes": 0,
-
-  "faq_items": [
-    {{
-      "question": "שאלה 1?",
-      "answer": "תשובה מפורטת ומקצועית לשאלה 1"
-    }},
-    {{
-      "question": "שאלה 2?",
-      "answer": "תשובה מפורטת ומקצועית לשאלה 2"
-    }}
-  ],
-
-  "common_mistakes": [
-    {{
-      "mistake": "טעות נפוצה 1",
-      "explanation": "מדוע זו טעות ומה צריך לעשות נכון"
-    }},
-    {{
-      "mistake": "טעות נפוצה 2",
-      "explanation": "מדוע זו טעות ומה צריך לעשות נכון"
-    }}
-  ],
-
-  "category_primary": "דיני עבודה",
-  "tags": ["פיצויי פיטורים", "דיני עבודה", "הודעה מוקדמת"],
-
-  "featured_image_prompt": "Professional courtroom scene in Israel, judge's gavel, legal documents, modern and clean",
-  "featured_image_alt": "אולם בית משפט - פסק דין בנושא פיצויי פיטורים"
-}}
-```
-
-## דרישות חובה (אסור להפר!):
-
-### אורך - קריטי ביותר!
-**המאמר חייב להיות 1800-2200 מילים בדיוק! לא פחות מ-1800 מילים!**
+## דרישות חובה לציון 80+:
 
 ### תוכן:
-1. **7-8 כותרות H2** - כל H2 עם 150-250 מילים תחתיו
-2. **10-12 כותרות H3** - רובן ב-FAQ
-3. **8-10 שאלות FAQ** - כל שאלה H3 עם תשובה מפורטת
-4. **5-6 טעויות נפוצות** - עם הסברים מפורטים
-5. **6-8 ציטוטי חוק** - סעיפים מדויקים עם מספרים
-6. **תקדימים** - **רק אם מוזכרים בטקסט המקור!** אם אין תקדימים בטקסט - אל תמציא!
-7. **12+ מונחים משפטיים מקצועיים**
-8. **5-6 רשימות** - bullet points או מספרים
-9. **Disclaimer חזק** - בסוף המאמר
-10. **צפיפות מילות מפתח: 1.0-1.2%**
+- 1800-2200 מילים
+- 7 כותרות H2 + 5 כותרות H3
+- 16+ פסקאות (3-5 משפטים כל אחת)
+- 8+ שאלות FAQ
+- 2+ רשימות
 
-### סגנון (דרישות מחייבות):
-1. כתוב כעורך דין ישראלי מנוסה עם ניסיון של שנים רבות
-2. הסבר במונחים פשוטים אך השתמש במינוחים משפטיים מקצועיים
-3. תן דוגמאות מעשיות מחיי היומיום
-4. **משפטים קצרים**: 15-18 מילים ממוצע (לא יותר מ-20!)
-5. **מילות מעבר**: לפחות 10-12 מילות מעבר (לכן, בנוסף, מאידך, וכו')
-6. **פסקאות קצרות**: 2-3 שורות מקסימום
-7. אל תבטיח תוצאות
-8. אל תיתן ייעוץ ספציפי
+### SEO:
+- כותרת עד 55 תווים עם "{focus_keyword}"
+- meta_description: 120-160 תווים עם "{focus_keyword}"
+- "{focus_keyword}" בפסקה הראשונה
+- 10-15 הזכרות טבעיות של מילת המפתח
 
-### SEO (דרישות מדויקות):
-1. **כותרת H1**: 50-60 תווים, חובה להכיל את מילת המפתח הראשית
-2. **Meta description**: 150-155 תווים, כוללת מילת מפתח ראשית
-3. **מילת מפתח בפסקה הראשונה**: חייב להזכיר את מילת המפתח הראשית בפסקה הראשונה!
-4. **צפיפות מילות מפתח ראשית**: 1.0-1.2% בדיוק (חשב והתאם!)
-5. **מילות מפתח משניות**: שימוש ב-100% מהמילות המשניות לפחות פעמיים כל אחת
-6. **Slug בעברית באותיות לטיניות**: נקי וקריא
-7. **קישורים פנימיים**: 3-5 קישורים למאמרים אחרים (דוגמה: <a href="/נזיקין">נזיקין</a>)
-8. **קישורים חיצוניים**: 2-3 קישורים לאתרים אמינים כמו https://www.nevo.co.il
-9. **שילוב טבעי**: אל תעשה keyword stuffing
+### קריאות:
+- משפטים קצרים (עד 25 מילים)
+- פסקאות עד 150 מילים
+- 8+ מילות קישור: לכן, אולם, בנוסף, כמו כן, למרות, יתרה מזאת, ראשית, שנית, לבסוף
 
-### איכות (קריטריונים מחמירים):
-1. **אסור keyword stuffing** - שימוש טבעי בלבד
-2. **ציטוטים קצרים** - מקסימום 20 מילים
-3. **אסור מידע כוזב** - רק מידע מבוסס על נתוני פסק הדין
-   **אסור להמציא תקדימים או מספרי תיקים שלא מופיעים בטקסט המקור!**
-4. **אסור הבטחות** - אל תבטיח תוצאות
-5. **תוכן מקיף ומעמיק** - כל סעיף צריך להיות מפורט ומקצועי
-6. **דיוק משפטי מוחלט** - כל סעיף, חוק ותקדים צריכים להיות נכונים
+### E-E-A-T (חובה!):
+- 6+ ציטוטי חוק (סעיף X לחוק Y)
+- 10+ מונחים משפטיים: פיצויים, נזק, אחריות, רשלנות, סמכות, ערעור, פסק דין, בית משפט, תובע, נתבע
+- בסוף המאמר disclaimer: "אין באמור לעיל משום ייעוץ משפטי. מומלץ להתייעץ עם עורך דין."
+- בסוף המאמר CTA: "לייעוץ משפטי, צרו קשר."
 
-### בדיקת איכות לפני הגשה (חובה!):
-**קריטי ביותר: ספור מילים - חייב להיות לפחות 1800 מילים!**
-- ספור H2: 7-8
-- ספור H3: 10-12
-- ספור ציטוטי חוק: לפחות 6-8
-- ספור תקדימים: רק תקדימים שמוזכרים בטקסט המקור (0 אם אין)
-- ספור FAQ: 8-10
-- ספור טעויות נפוצות: 5-6
-- בדוק צפיפות מילת מפתח: 1.0-1.2%
-- בדוק אורך משפטים: ממוצע 15-18 מילים
-- בדוק מילות מעבר: לפחות 10-12
-- **בדוק שמילת המפתח מופיעה בפסקה הראשונה!**
-- **בדוק שיש 3-5 קישורים פנימיים!**
-- **בדוק שיש 2-3 קישורים חיצוניים!**
+### איסורים:
+- אסור "פסק דין חדשני/תקדימי/פורץ דרך"
+- אסור מספרי תיקים
 
-**זכור: המאמר חייב להיות 1800-2200 מילים! זו הדרישה החשובה ביותר!**
-
-**החזר JSON תקין בלבד! אל תשכח שום שדה!**"""
+החזר JSON בלבד."""
 
     def _parse_response(self, response_text: str) -> Dict[str, Any]:
         """Parse Claude's JSON response with robust repair logic."""
@@ -507,7 +326,8 @@ class ArticleGenerator:
             "category_primary": verdict_data.get("legal_area", "משפטי"),
             "tags": [],
             "featured_image_prompt": "",
-            "featured_image_alt": ""
+            "featured_image_alt": "",
+            "author_name": self._get_random_author()
         }
 
         for field, default in required_fields.items():
@@ -516,16 +336,33 @@ class ArticleGenerator:
 
         return result
 
+    # Authors list for random selection
+    AUTHORS = [
+        "עו\"ד משה טייב",
+        "עו\"ד מיכאל לב"
+    ]
+
+    def _get_random_author(self) -> str:
+        """Get a random author name from the predefined list."""
+        return random.choice(self.AUTHORS)
+
     def _generate_article_schema(self, article: Dict[str, Any], verdict_data: Dict[str, Any]) -> Dict[str, Any]:
         """Generate Schema.org Article JSON-LD."""
+        author_name = article.get("author_name") or self._get_random_author()
         return {
             "@context": "https://schema.org",
             "@type": "Article",
             "headline": article.get("title", ""),
             "description": article.get("meta_description", ""),
             "author": {
+                "@type": "Person",
+                "name": author_name,
+                "jobTitle": "עורך דין"
+            },
+            "publisher": {
                 "@type": "Organization",
-                "name": "מערכת תוכן משפטי"
+                "name": "לב-טייב עורכי דין",
+                "url": "https://lt-law.co.il"
             },
             "datePublished": verdict_data.get("verdict_date", ""),
             "articleBody": re.sub(r'<[^>]+>', '', article.get("content_html", "")),

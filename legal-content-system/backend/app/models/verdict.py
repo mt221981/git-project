@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Text, Enum
+from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Text, Enum, ForeignKey
 from sqlalchemy.dialects.postgresql import JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -91,6 +91,10 @@ class Verdict(Base):
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # Batch relationship
+    batch_id = Column(Integer, ForeignKey("batches.id"), nullable=True, index=True)
+    batch = relationship("Batch", back_populates="verdicts")
 
     # Relationships
     articles = relationship("Article", back_populates="verdict", cascade="all, delete-orphan")

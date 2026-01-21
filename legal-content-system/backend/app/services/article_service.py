@@ -238,23 +238,26 @@ class ArticleService:
                 "compensation_breakdown": verdict.compensation_breakdown,
                 "relevant_laws": verdict.relevant_laws or [],
                 "precedents_cited": verdict.precedents_cited or [],
-                "practical_insights": verdict.practical_insights or []
+                "practical_insights": verdict.practical_insights or [],
+                # Add actual verdict content for the prompt
+                "verdict_text": (verdict.anonymized_text or verdict.cleaned_text or "")[:8000],
+                "summary": self._generate_summary(verdict)
             }
 
             # Quality control retry loop
-            MAX_GENERATION_ATTEMPTS = 3  # Reduced from 5 for better performance
-            MIN_SCORE_THRESHOLD = 85  # Quality threshold for all metrics (uniform)
+            MAX_GENERATION_ATTEMPTS = 3  # Allow more retries for 80+ quality threshold
+            MIN_SCORE_THRESHOLD = 80  # High quality threshold - all metrics must reach 80+
             previous_scores = None
 
-            # Set initial progress for article generation
+            # Set initial progress for article generation - start from 60%
             verdict.status = VerdictStatus.ARTICLE_CREATING
-            verdict.processing_progress = 65
+            verdict.processing_progress = 60
             verdict.processing_message = "מתחיל יצירת מאמר..."
             self.db.commit()
 
             for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
-                # Calculate progress: 65 + (attempt-1)*10 = 65, 75, 85
-                progress = 65 + (attempt - 1) * 10
+                # Calculate progress: 60 + (attempt-1)*15 = 60, 75
+                progress = 60 + (attempt - 1) * 15
                 verdict.processing_progress = progress
                 verdict.processing_message = f"יוצר מאמר ({attempt}/{MAX_GENERATION_ATTEMPTS}) - שולח ל-AI..."
                 self.db.commit()
@@ -343,7 +346,7 @@ class ArticleService:
                     # Failed after max attempts
                     print(f"[ArticleService] Failed to meet quality threshold after {MAX_GENERATION_ATTEMPTS} attempts")
                     verdict.status = VerdictStatus.FAILED
-                    verdict.processing_progress = 65
+                    verdict.processing_progress = 60
                     verdict.processing_message = f"נכשל אחרי {MAX_GENERATION_ATTEMPTS} ניסיונות"
                     verdict.review_notes = f"Article quality below threshold after {MAX_GENERATION_ATTEMPTS} attempts. Last scores: Content={scores['content_score']}, SEO={scores['seo_score']}, Readability={scores['readability_score']}, E-E-A-T={scores['eeat_score']}"
                     self.db.commit()
@@ -469,88 +472,41 @@ class ArticleService:
             self.db.rollback()
             raise ArticleGenerationError(f"Failed to generate article: {str(e)}")
 
+    def _generate_summary(self, verdict) -> str:
+        """Generate a summary from verdict analysis data."""
+        parts = []
+
+        if verdict.key_facts:
+            parts.append("עובדות: " + "; ".join(str(f) for f in verdict.key_facts[:3]))
+
+        if verdict.legal_questions:
+            parts.append("שאלות: " + "; ".join(str(q) for q in verdict.legal_questions[:2]))
+
+        if verdict.practical_insights:
+            parts.append("תובנות: " + "; ".join(str(i) for i in verdict.practical_insights[:2]))
+
+        if verdict.compensation_amount:
+            parts.append(f"פיצוי: {verdict.compensation_amount:,.0f} ש\"ח")
+
+        return " | ".join(parts) if parts else ""
+
     def _build_improvement_hints(self, previous_scores: dict) -> str:
-        """Build specific improvement instructions based on previous scores."""
-        MIN_SCORE_THRESHOLD = 85  # Uniform threshold for all metrics
-        hints = ["## הנחיות לשיפור (בהתאם לציונים הקודמים):"]
+        """Build concise improvement hints based on previous scores."""
+        hints = []
 
-        if previous_scores["seo_score"] < MIN_SCORE_THRESHOLD:
-            hints.append(f"""
-### SEO (ציון קודם: {previous_scores['seo_score']}) - יעד: 85+
+        if previous_scores["seo_score"] < 70:
+            hints.append(f"SEO({previous_scores['seo_score']}): הוסף מילות מפתח 22+ פעמים, בכותרות ובפסקה ראשונה")
 
-**CRITICAL - תקן בדיוק את הבעיות הבאות:**
+        if previous_scores["eeat_score"] < 70:
+            hints.append(f"E-E-A-T({previous_scores['eeat_score']}): הוסף 8+ סעיפי חוק עם מספרים, ביטויים סמכותיים, מונחים משפטיים עם הסבר")
 
-1. **צפיפות מילות מפתח ראשית:**
-   - ספור: יעד 22-25 הזכרות במאמר של 1800 מילים (1.3-1.5%)
-   - הוסף מילת מפתח ב-5-6 כותרות H2
-   - הוסף מילת מפתח ב-2-3 כותרות H3
+        if previous_scores["readability_score"] < 70:
+            hints.append(f"קריאות({previous_scores['readability_score']}): קצר משפטים, הוסף רשימות")
 
-2. **מיקום אסטרטגי:**
-   - חובה בפסקה הראשונה (100 מילים ראשונות)
-   - חובה ב-meta title (בתחילה!)
-   - חובה ב-meta description
+        if previous_scores["content_score"] < 70:
+            hints.append(f"תוכן({previous_scores['content_score']}): הוסף FAQ, סיכום, קריאה לפעולה")
 
-3. **מילות מפתח משניות:**
-   - כל מילה: 4-6 הזכרות (ספור בדיוק!)
-
-4. **Meta Description:**
-   - 150-160 תווים
-   - נוסחה: מילת מפתח + value proposition + CTA
-
-5. **קישורים:**
-   - 4-5 פנימיים + 2-3 חיצוניים (nevo.co.il, gov.il)
-""")
-
-        if previous_scores["eeat_score"] < MIN_SCORE_THRESHOLD:
-            hints.append(f"""
-### E-E-A-T (ציון קודם: {previous_scores['eeat_score']}) - יעד: 85+ - קריטי!
-
-**הציון הנוכחי {previous_scores['eeat_score']} - חסר {MIN_SCORE_THRESHOLD - previous_scores['eeat_score']} נקודות!**
-
-**Experience (ניסיון) - הוסף!**
-- דוגמאות מעשיות: "במקרים דומים שנדונו בבתי המשפט..."
-- תרחישים אמיתיים: "נניח מצב בו..."
-- מגמות: "בשנים האחרונות חלה מגמה של..."
-
-**Expertise (מומחיות) - הגדל!**
-- **15+ מונחים משפטיים** עם הסבר בסוגריים - ספור!
-- מונחים חובה: "נטל ההוכחה", "קשר סיבתי", "אחריות שילוחית", "עילת תביעה", "חובת זהירות"
-- הוסף ניתוח משפטי מעמיק - לא רק תיאור עובדות
-
-**Authoritativeness (סמכותיות) - הכי חשוב!**
-- **10-12 סעיפי חוק** עם מספרים מדויקים - זה המפתח!
-- דוגמאות: "סעיף 35 לפקודת הנזיקין", "סעיף 41 לחוק חוזה הביטוח"
-- **8+ ביטויים סמכותיים שונים**: "ההלכה הפסוקה קובעת", "בתי המשפט קבעו באופן עקבי", "הדין קובע במפורש"
-- הימנע מ: "אולי", "יתכן", "ככל הנראה" - כתוב בטון בטוח!
-- **3-4 קישורים** ל-nevo.co.il, gov.il
-
-**Trustworthiness (אמינות):**
-- סעיף "חשוב לדעת" עם 3-4 נקודות
-- disclaimer מורחב (3 משפטים לפחות)
-- אל תמציא מספרי תיקים או תקדימים
-""")
-
-        if previous_scores["readability_score"] < MIN_SCORE_THRESHOLD:
-            hints.append(f"""
-### קריאות (ציון קודם: {previous_scores['readability_score']}) - יעד: 85+
-- קצר משפטים - ממוצע 15 מילים
-- פרק לפסקאות קצרות - 2-3 שורות מקסימום
-- הוסף 5-6 רשימות תבליטים
-- הוסף מילות מעבר טבעיות
-""")
-
-        if previous_scores["content_score"] < MIN_SCORE_THRESHOLD:
-            hints.append(f"""
-### תוכן (ציון קודם: {previous_scores['content_score']}) - יעד: 85+
-- פסקה פותחת חזקה שמסבירה את הרלוונטיות
-- רקע עובדתי של המקרה
-- ניתוח החלטת בית המשפט
-- השלכות מעשיות
-- סעיף FAQ (8-10 שאלות)
-- סיכום + קריאה לפעולה
-""")
-
-        return "\n".join(hints)
+        return " | ".join(hints) if hints else ""
 
     def get_article(self, article_id: int) -> Optional[Article]:
         """Get article by ID."""

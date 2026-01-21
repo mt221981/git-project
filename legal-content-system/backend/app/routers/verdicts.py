@@ -237,8 +237,22 @@ def run_full_pipeline_background(verdict_id: int):
     try:
         from app.models.verdict import Verdict
 
+        # Set initial progress
+        verdict = db.query(Verdict).filter(Verdict.id == verdict_id).first()
+        if verdict:
+            verdict.processing_progress = 5
+            verdict.processing_message = "מתחיל עיבוד..."
+            db.commit()
+
         # Step 1: Analyze (directly from cleaned/original text)
         print(f"[Background] Starting analysis for verdict {verdict_id}")
+
+        # Update progress before analysis
+        if verdict:
+            verdict.processing_progress = 10
+            verdict.processing_message = "מתחיל ניתוח משפטי..."
+            db.commit()
+
         analysis_service = AnalysisService(db)
         analysis_service.analyze_verdict(verdict_id)
 
@@ -447,7 +461,7 @@ async def reset_stuck_verdict(
         )
 
     # Check if verdict is in a stuck processing state
-    stuck_states = [VerdictStatus.ANONYMIZING, VerdictStatus.ANALYZING]
+    stuck_states = [VerdictStatus.ANONYMIZING, VerdictStatus.ANALYZING, VerdictStatus.ARTICLE_CREATING]
 
     if verdict.status not in stuck_states and verdict.status != VerdictStatus.FAILED:
         raise HTTPException(

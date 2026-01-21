@@ -4,7 +4,8 @@ from contextlib import asynccontextmanager
 
 from app.config import settings
 from app.database import init_db
-from app.routers import verdicts, articles, wordpress, auth
+from app.routers import verdicts, articles, wordpress, auth, batch
+from app.services.batch_worker import start_worker, stop_worker
 
 
 @asynccontextmanager
@@ -17,10 +18,16 @@ async def lifespan(app: FastAPI):
     init_db()
     print("Database initialized successfully")
 
+    # Start batch worker
+    await start_worker()
+    print("Batch worker started")
+
     yield
 
     # Shutdown
     print("Shutting down application")
+    await stop_worker()
+    print("Batch worker stopped")
 
 
 # Create FastAPI application
@@ -63,6 +70,7 @@ app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(verdicts.router, prefix="/api/v1/verdicts", tags=["verdicts"])
 app.include_router(articles.router, prefix="/api/v1/articles", tags=["articles"])
 app.include_router(wordpress.router, prefix="/api/v1/wordpress", tags=["wordpress"])
+app.include_router(batch.router, prefix="/api/v1/batch", tags=["batch"])
 
 
 if __name__ == "__main__":

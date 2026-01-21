@@ -58,6 +58,9 @@ class ArticleResponse(BaseModel):
     featured_image_prompt: Optional[str] = None
     featured_image_alt: Optional[str] = None
 
+    # Author
+    author_name: Optional[str] = None
+
     # Quality scores
     content_score: int
     seo_score: int
@@ -106,6 +109,7 @@ class ArticleListResponse(BaseModel):
     slug: str
     excerpt: Optional[str] = None
     category_primary: Optional[str] = None
+    author_name: Optional[str] = None
     word_count: Optional[int] = None
     overall_score: int
     publish_status: PublishStatus

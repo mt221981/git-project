@@ -1,22 +1,110 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { verdictApi, articleApi } from '../api/client';
 
-// Progress bar component
-function ProgressBar({ progress, message }: { progress: number; message: string }) {
+// Enhanced Progress bar component with stages
+function ProgressBar({
+  progress,
+  message,
+  status
+}: {
+  progress: number;
+  message: string;
+  status: string;
+}) {
+  // Determine stage based on status
+  const getStage = () => {
+    switch (status) {
+      case 'extracted':
+        return { stage: 1, label: 'ממתין לעיבוד' };
+      case 'anonymizing':
+        return { stage: 2, label: 'מנקה טקסט' };
+      case 'anonymized':
+        return { stage: 2, label: 'טקסט נוקה' };
+      case 'analyzing':
+        return { stage: 3, label: 'מנתח פסק דין' };
+      case 'analyzed':
+        return { stage: 3, label: 'ניתוח הושלם' };
+      case 'article_creating':
+        return { stage: 4, label: 'יוצר מאמר' };
+      case 'article_created':
+        return { stage: 5, label: 'מאמר נוצר!' };
+      case 'published':
+        return { stage: 5, label: 'פורסם!' };
+      case 'failed':
+        return { stage: 0, label: 'נכשל' };
+      default:
+        return { stage: 0, label: 'לא ידוע' };
+    }
+  };
+
+  const { stage, label } = getStage();
+  const isProcessing = ['anonymizing', 'analyzing', 'article_creating'].includes(status);
+  const isFailed = status === 'failed';
+  const isComplete = ['article_created', 'published'].includes(status);
+
   return (
     <div className="w-full">
-      <div className="flex justify-between mb-1">
-        <span className="text-sm font-medium text-blue-700">{message}</span>
-        <span className="text-sm font-medium text-blue-700">{progress}%</span>
+      {/* Stage indicators */}
+      <div className="flex justify-between mb-4 text-xs">
+        <div className={`flex flex-col items-center ${stage >= 1 ? 'text-blue-600' : 'text-gray-400'}`}>
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-1 ${
+            stage >= 1 ? 'bg-blue-600 text-white' : 'bg-gray-200'
+          }`}>1</div>
+          <span>טעינה</span>
+        </div>
+        <div className={`flex flex-col items-center ${stage >= 2 ? 'text-blue-600' : 'text-gray-400'}`}>
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-1 ${
+            stage >= 2 ? 'bg-blue-600 text-white' : 'bg-gray-200'
+          }`}>2</div>
+          <span>ניקוי</span>
+        </div>
+        <div className={`flex flex-col items-center ${stage >= 3 ? 'text-blue-600' : 'text-gray-400'}`}>
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-1 ${
+            stage >= 3 ? 'bg-blue-600 text-white' : 'bg-gray-200'
+          }`}>3</div>
+          <span>ניתוח</span>
+        </div>
+        <div className={`flex flex-col items-center ${stage >= 4 ? 'text-blue-600' : 'text-gray-400'}`}>
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-1 ${
+            stage >= 4 ? 'bg-blue-600 text-white' : 'bg-gray-200'
+          } ${status === 'article_creating' ? 'animate-pulse' : ''}`}>4</div>
+          <span>מאמר</span>
+        </div>
+        <div className={`flex flex-col items-center ${stage >= 5 ? 'text-green-600' : 'text-gray-400'}`}>
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-1 ${
+            stage >= 5 ? 'bg-green-600 text-white' : 'bg-gray-200'
+          }`}>✓</div>
+          <span>סיום</span>
+        </div>
       </div>
-      <div className="w-full bg-gray-200 rounded-full h-4">
+
+      {/* Progress bar */}
+      <div className="flex justify-between mb-1">
+        <span className={`text-sm font-medium ${isFailed ? 'text-red-700' : isComplete ? 'text-green-700' : 'text-blue-700'}`}>
+          {message || label}
+        </span>
+        <span className={`text-sm font-medium ${isFailed ? 'text-red-700' : isComplete ? 'text-green-700' : 'text-blue-700'}`}>
+          {progress}%
+        </span>
+      </div>
+      <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
         <div
-          className="bg-blue-600 h-4 rounded-full transition-all duration-500 ease-out"
-          style={{ width: `${progress}%` }}
+          className={`h-4 rounded-full transition-all duration-700 ease-out ${
+            isFailed ? 'bg-red-500' : isComplete ? 'bg-green-500' : 'bg-blue-600'
+          } ${isProcessing ? 'animate-pulse' : ''}`}
+          style={{ width: `${Math.min(progress, 100)}%` }}
         />
       </div>
+
+      {/* Processing indicator */}
+      {isProcessing && (
+        <div className="flex items-center gap-2 mt-2 text-blue-600">
+          <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full"></div>
+          <span className="text-sm">מעבד... אנא המתן</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -27,6 +115,9 @@ function Timer({ startTime }: { startTime: number | null }) {
 
   useEffect(() => {
     if (!startTime) return;
+
+    // Calculate initial elapsed time
+    setElapsed(Math.floor((Date.now() - startTime) / 1000));
 
     const interval = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startTime) / 1000));
@@ -41,7 +132,7 @@ function Timer({ startTime }: { startTime: number | null }) {
   const seconds = elapsed % 60;
 
   return (
-    <div className="text-sm text-gray-600">
+    <div className="text-sm text-gray-600 font-mono">
       זמן שעבר: {minutes}:{seconds.toString().padStart(2, '0')}
     </div>
   );
@@ -52,187 +143,110 @@ export default function VerdictDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [operationProgress, setOperationProgress] = useState(0);
-  const [operationMessage, setOperationMessage] = useState('');
   const [operationStartTime, setOperationStartTime] = useState<number | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [localMessage, setLocalMessage] = useState<string>('');
+
+  // Define processing statuses
+  const processingStatuses = ['anonymizing', 'analyzing', 'article_creating'];
 
   const { data: verdict, isLoading, error, refetch } = useQuery({
     queryKey: ['verdict', id],
     queryFn: () => verdictApi.get(Number(id)).then((res) => res.data),
     enabled: !!id,
-    refetchInterval: isProcessing ? 1000 : false, // Poll every 1s during processing for responsive updates
+    // Poll more frequently during processing
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (data && processingStatuses.includes(data.status)) {
+        return 2000; // Poll every 2 seconds during processing
+      }
+      return false; // Don't poll when not processing
+    },
   });
 
-  // Update processing state based on verdict status
-  useEffect(() => {
-    const processingStatuses = ['analyzing', 'article_creating'];
+  // Determine if currently processing
+  const isProcessing = verdict ? processingStatuses.includes(verdict.status) : false;
 
-    if (processingStatuses.includes(verdict?.status || '')) {
-      setIsProcessing(true);
-      // Update progress from verdict fields
-      setOperationProgress(verdict?.processing_progress || 0);
-      setOperationMessage(verdict?.processing_message || 'מעבד...');
-    } else if (verdict?.status === 'failed' && isProcessing) {
-      // Operation failed - show error and reset
-      setIsProcessing(false);
-      setOperationProgress(0);
-      setOperationMessage('הפעולה נכשלה - ראה הערות למטה');
-      setOperationStartTime(null);
-      // Clear message after delay
+  // Set start time when processing begins
+  useEffect(() => {
+    if (isProcessing && !operationStartTime) {
+      setOperationStartTime(Date.now());
+    } else if (!isProcessing && operationStartTime) {
+      // Processing ended - keep timer for a moment then clear
       setTimeout(() => {
-        setOperationMessage('');
-      }, 5000);
-    } else if ((verdict?.status === 'article_created' || verdict?.status === 'published') && isProcessing) {
-      // Article was created/published - fetch it and navigate
-      setOperationProgress(verdict?.processing_progress || 100);
-      setOperationMessage(verdict?.processing_message || 'המאמר נוצר בהצלחה! מעביר לדף המאמר...');
+        setOperationStartTime(null);
+      }, 3000);
+    }
+  }, [isProcessing, operationStartTime]);
+
+  // Handle navigation to article when created
+  useEffect(() => {
+    if (verdict?.status === 'article_created' || verdict?.status === 'published') {
+      // Fetch article and offer navigation
       articleApi.getByVerdict(Number(id)).then((response) => {
         const articleId = response.data.id;
+        setLocalMessage(`מאמר נוצר בהצלחה! מעביר לדף המאמר...`);
         setTimeout(() => {
-          setIsProcessing(false);
           navigate(`/articles/${articleId}`);
-        }, 1000);
+        }, 2000);
       }).catch(() => {
-        setIsProcessing(false);
-        setOperationMessage('המאמר נוצר אך לא ניתן לטעון אותו');
+        setLocalMessage('המאמר נוצר אך לא נמצא - רענן את הדף');
       });
-    } else if (isProcessing && verdict?.status === 'analyzed') {
-      // Analysis completed - if we were doing analysis only
-      setIsProcessing(false);
-      setOperationProgress(100);
-      setOperationMessage('הניתוח הושלם!');
-      setTimeout(() => {
-        setOperationProgress(0);
-        setOperationMessage('');
-        setOperationStartTime(null);
-      }, 2000);
     }
-  }, [verdict?.status, isProcessing, id, navigate]);
+  }, [verdict?.status, id, navigate]);
+
+  // Mutations
+  const createMutationConfig = useCallback((initialMessage: string, initialProgress?: number) => ({
+    onMutate: () => {
+      setOperationStartTime(Date.now());
+      setLocalMessage(initialMessage);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['verdict', id] });
+    },
+    onError: (error: Error) => {
+      setLocalMessage(`שגיאה: ${error.message}`);
+      setTimeout(() => setLocalMessage(''), 5000);
+    },
+  }), [id, queryClient]);
 
   const anonymizeMutation = useMutation({
     mutationFn: () => verdictApi.anonymize(Number(id)),
-    onMutate: () => {
-      setIsProcessing(true);
-      setOperationProgress(5);
-      setOperationMessage('מתחיל עיבוד...');
-      setOperationStartTime(Date.now());
-    },
-    onSuccess: () => {
-      // Don't set progress to 100 - let the polling update it from backend
-      queryClient.invalidateQueries({ queryKey: ['verdict', id] });
-      // Keep processing state, will be updated by useEffect when status changes
-    },
-    onError: (error: Error) => {
-      setIsProcessing(false);
-      setOperationProgress(0);
-      setOperationMessage(`שגיאה: ${error.message}`);
-    },
+    ...createMutationConfig('מתחיל עיבוד...'),
   });
 
   const analyzeMutation = useMutation({
     mutationFn: () => articleApi.analyze(Number(id)),
-    onMutate: () => {
-      setIsProcessing(true);
-      setOperationProgress(5);
-      setOperationMessage('מתחיל ניתוח...');
-      setOperationStartTime(Date.now());
-    },
-    onSuccess: () => {
-      // Don't set progress to 100 - let the polling update it from backend
-      queryClient.invalidateQueries({ queryKey: ['verdict', id] });
-    },
-    onError: (error: Error) => {
-      setIsProcessing(false);
-      setOperationProgress(0);
-      setOperationMessage(`שגיאה: ${error.message}`);
-    },
+    ...createMutationConfig('מתחיל ניתוח...'),
   });
 
   const generateMutation = useMutation({
     mutationFn: () => articleApi.generate(Number(id)),
-    onMutate: () => {
-      setIsProcessing(true);
-      setOperationProgress(5);
-      setOperationMessage('מייצר מאמר...');
-      setOperationStartTime(Date.now());
-    },
-    onSuccess: () => {
-      // Article generation is async - polling will detect status change to 'article_created'
-      // and then fetch the article and navigate
-      queryClient.invalidateQueries({ queryKey: ['verdict', id] });
-    },
-    onError: (error: Error) => {
-      setIsProcessing(false);
-      setOperationProgress(0);
-      setOperationMessage(`שגיאה: ${error.message}`);
-    },
+    ...createMutationConfig('מתחיל יצירת מאמר...'),
   });
 
   const retryArticleMutation = useMutation({
     mutationFn: () => articleApi.retryGeneration(Number(id)),
-    onMutate: () => {
-      setIsProcessing(true);
-      setOperationProgress(65);
-      setOperationMessage('מתחיל יצירת מאמר מחדש...');
-      setOperationStartTime(Date.now());
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['verdict', id] });
-    },
-    onError: (error: Error) => {
-      setIsProcessing(false);
-      setOperationMessage(`שגיאה: ${error.message}`);
-    },
+    ...createMutationConfig('מתחיל יצירת מאמר מחדש...'),
   });
 
   const reprocessMutation = useMutation({
     mutationFn: () => verdictApi.reprocess(Number(id)),
-    onMutate: () => {
-      setIsProcessing(true);
-      setOperationProgress(5);
-      setOperationMessage('מתחיל עיבוד מחדש...');
-      setOperationStartTime(Date.now());
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['verdict', id] });
-      // The polling will handle the rest of the status updates
-    },
-    onError: (error: Error) => {
-      setIsProcessing(false);
-      setOperationProgress(0);
-      setOperationMessage(`שגיאה: ${error.message}`);
-    },
+    ...createMutationConfig('מתחיל עיבוד מחדש מההתחלה...'),
   });
 
   const resetMutation = useMutation({
     mutationFn: () => verdictApi.reset(Number(id)),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['verdict', id] });
-      setOperationProgress(0);
-      setOperationMessage('פסק הדין אופס בהצלחה');
-      setIsProcessing(false);
-      setTimeout(() => setOperationMessage(''), 3000);
+      setLocalMessage('פסק הדין אופס בהצלחה');
+      setTimeout(() => setLocalMessage(''), 3000);
     },
     onError: (error: Error) => {
-      setOperationMessage(`שגיאה באיפוס: ${error.message}`);
+      setLocalMessage(`שגיאה באיפוס: ${error.message}`);
     },
   });
 
-  // Update progress from backend (real progress tracking)
-  useEffect(() => {
-    if (!isProcessing) return;
-
-    // Use real progress from backend
-    if (verdict?.processing_progress !== undefined && verdict?.processing_progress !== null) {
-      setOperationProgress(verdict.processing_progress);
-    }
-
-    if (verdict?.processing_message) {
-      setOperationMessage(verdict.processing_message);
-    }
-  }, [verdict?.processing_progress, verdict?.processing_message, isProcessing]);
-
+  // Loading state
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -244,6 +258,7 @@ export default function VerdictDetail() {
     );
   }
 
+  // Error state
   if (error) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
@@ -257,15 +272,21 @@ export default function VerdictDetail() {
 
   if (!verdict) return <div>פסק דין לא נמצא</div>;
 
+  // Get progress and message from verdict (backend) or local state
+  const progress = verdict.processing_progress || 0;
+  const message = localMessage || verdict.processing_message || '';
+
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
       new: 'חדש',
       extracted: 'טקסט הופק',
-      anonymizing: 'מאנוניזם...',
-      anonymized: 'מאונונם',
+      anonymizing: 'מעבד טקסט...',
+      anonymized: 'טקסט נוקה',
       analyzing: 'מנתח...',
-      analyzed: 'נותח',
+      analyzed: 'נותח - מוכן למאמר',
+      article_creating: 'יוצר מאמר...',
       article_created: 'מאמר נוצר',
+      published: 'פורסם',
       failed: 'נכשל',
     };
     return labels[status] || status;
@@ -275,15 +296,20 @@ export default function VerdictDetail() {
     const colors: Record<string, string> = {
       new: 'bg-gray-100 text-gray-800',
       extracted: 'bg-blue-100 text-blue-800',
-      anonymizing: 'bg-yellow-100 text-yellow-800',
+      anonymizing: 'bg-yellow-100 text-yellow-800 animate-pulse',
       anonymized: 'bg-green-100 text-green-800',
-      analyzing: 'bg-yellow-100 text-yellow-800',
+      analyzing: 'bg-yellow-100 text-yellow-800 animate-pulse',
       analyzed: 'bg-purple-100 text-purple-800',
+      article_creating: 'bg-orange-100 text-orange-800 animate-pulse',
       article_created: 'bg-indigo-100 text-indigo-800',
+      published: 'bg-green-100 text-green-800',
       failed: 'bg-red-100 text-red-800',
     };
     return colors[status] || 'bg-gray-100 text-gray-800';
   };
+
+  // Show progress section if processing or has progress
+  const showProgress = isProcessing || progress > 0 || verdict.status === 'article_created' || verdict.status === 'failed';
 
   return (
     <div>
@@ -296,21 +322,37 @@ export default function VerdictDetail() {
         </span>
       </div>
 
-      {/* Progress section */}
-      {(isProcessing || operationProgress > 0) && (
-        <div className="card mb-6 bg-blue-50 border-blue-200">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-bold text-blue-800">מצב העיבוד</h3>
-            <Timer startTime={operationStartTime} />
+      {/* Progress section - always show during processing */}
+      {showProgress && (
+        <div className={`card mb-6 ${
+          verdict.status === 'failed' ? 'bg-red-50 border-red-200' :
+          verdict.status === 'article_created' ? 'bg-green-50 border-green-200' :
+          'bg-blue-50 border-blue-200'
+        }`}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className={`font-bold ${
+              verdict.status === 'failed' ? 'text-red-800' :
+              verdict.status === 'article_created' ? 'text-green-800' :
+              'text-blue-800'
+            }`}>
+              {verdict.status === 'failed' ? 'העיבוד נכשל' :
+               verdict.status === 'article_created' ? 'העיבוד הושלם!' :
+               'מצב העיבוד'}
+            </h3>
+            {isProcessing && <Timer startTime={operationStartTime} />}
           </div>
-          <ProgressBar progress={Math.round(operationProgress)} message={operationMessage} />
+          <ProgressBar
+            progress={Math.round(progress)}
+            message={message}
+            status={verdict.status}
+          />
         </div>
       )}
 
       {/* Error/Review notes */}
       {verdict.review_notes && (
         <div className="card mb-6 bg-yellow-50 border-yellow-200">
-          <h3 className="font-bold text-yellow-800 mb-2">הערות</h3>
+          <h3 className="font-bold text-yellow-800 mb-2">הערות ביקורת</h3>
           <p className="text-yellow-700 text-sm whitespace-pre-wrap">{verdict.review_notes}</p>
         </div>
       )}
@@ -355,7 +397,7 @@ export default function VerdictDetail() {
                 {reprocessMutation.isPending ? (
                   <span className="flex items-center gap-2">
                     <span className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full"></span>
-                    מעבד אוטומטית...
+                    מתחיל עיבוד...
                   </span>
                 ) : (
                   'עבד אוטומטית (ניתוח + יצירת מאמר)'
@@ -406,7 +448,7 @@ export default function VerdictDetail() {
                 {generateMutation.isPending ? (
                   <span className="flex items-center gap-2">
                     <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
-                    מייצר מאמר...
+                    מתחיל יצירה...
                   </span>
                 ) : (
                   'צור מאמר'
@@ -423,10 +465,10 @@ export default function VerdictDetail() {
                 {retryArticleMutation.isPending ? (
                   <span className="flex items-center gap-2">
                     <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
-                    מייצר מאמר מחדש...
+                    מתחיל יצירה מחדש...
                   </span>
                 ) : (
-                  'צור מאמר משופר'
+                  'צור מאמר מחדש'
                 )}
               </button>
             )}
@@ -441,7 +483,7 @@ export default function VerdictDetail() {
             )}
 
             {/* Reset button - for stuck verdicts */}
-            {['anonymizing', 'analyzing', 'failed'].includes(verdict.status) && (
+            {['anonymizing', 'analyzing', 'article_creating', 'failed'].includes(verdict.status) && (
               <button
                 onClick={() => resetMutation.mutate()}
                 disabled={resetMutation.isPending}
@@ -453,13 +495,13 @@ export default function VerdictDetail() {
                     מאפס...
                   </span>
                 ) : (
-                  'אפס פסק דין תקוע'
+                  'אפס ונסה מחדש'
                 )}
               </button>
             )}
 
             {/* Reprocess button - available for most states except new/processing */}
-            {!['new', 'anonymizing', 'analyzing'].includes(verdict.status) && verdict.original_text && (
+            {!['new', 'extracted', 'anonymizing', 'analyzing', 'article_creating'].includes(verdict.status) && verdict.original_text && (
               <button
                 onClick={() => reprocessMutation.mutate()}
                 disabled={reprocessMutation.isPending || isProcessing}

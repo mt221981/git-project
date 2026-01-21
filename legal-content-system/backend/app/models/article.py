@@ -61,6 +61,9 @@ class Article(Base):
     featured_image_prompt = Column(Text)
     featured_image_alt = Column(String(200))
 
+    # Author
+    author_name = Column(String(100), default="עו\"ד משה טייב")
+
     # Quality scores
     content_score = Column(Integer, default=0)
     seo_score = Column(Integer, default=0)
