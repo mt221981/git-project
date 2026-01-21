@@ -97,11 +97,11 @@ export default function VerdictDetail() {
         setIsProcessing(false);
         setOperationMessage('המאמר נוצר אך לא ניתן לטעון אותו');
       });
-    } else if (isProcessing && !['analyzing', 'article_creating', 'failed'].includes(verdict?.status || '')) {
-      // Operation completed successfully (analyzed, etc.)
+    } else if (isProcessing && verdict?.status === 'analyzed') {
+      // Analysis completed - if we were doing analysis only
       setIsProcessing(false);
       setOperationProgress(100);
-      setOperationMessage('הושלם!');
+      setOperationMessage('הניתוח הושלם!');
       setTimeout(() => {
         setOperationProgress(0);
         setOperationMessage('');
@@ -119,9 +119,9 @@ export default function VerdictDetail() {
       setOperationStartTime(Date.now());
     },
     onSuccess: () => {
+      // Don't set progress to 100 - let the polling update it from backend
       queryClient.invalidateQueries({ queryKey: ['verdict', id] });
-      setOperationProgress(100);
-      setOperationMessage('העיבוד הושלם בהצלחה!');
+      // Keep processing state, will be updated by useEffect when status changes
     },
     onError: (error: Error) => {
       setIsProcessing(false);
@@ -139,9 +139,8 @@ export default function VerdictDetail() {
       setOperationStartTime(Date.now());
     },
     onSuccess: () => {
+      // Don't set progress to 100 - let the polling update it from backend
       queryClient.invalidateQueries({ queryKey: ['verdict', id] });
-      setOperationProgress(100);
-      setOperationMessage('הניתוח הושלם בהצלחה!');
     },
     onError: (error: Error) => {
       setIsProcessing(false);

@@ -253,10 +253,10 @@ class ArticleService:
             self.db.commit()
 
             for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
-                # Calculate progress: 65 + (attempt-1)*7 = 65, 72, 79, 86, 93
-                progress = 65 + (attempt - 1) * 7
+                # Calculate progress: 65 + (attempt-1)*10 = 65, 75, 85
+                progress = 65 + (attempt - 1) * 10
                 verdict.processing_progress = progress
-                verdict.processing_message = f"יוצר מאמר - ניסיון {attempt}/{MAX_GENERATION_ATTEMPTS}..."
+                verdict.processing_message = f"יוצר מאמר ({attempt}/{MAX_GENERATION_ATTEMPTS}) - שולח ל-AI..."
                 self.db.commit()
 
                 print(f"[ArticleService] Article generation attempt {attempt}/{MAX_GENERATION_ATTEMPTS}")
@@ -266,12 +266,21 @@ class ArticleService:
                 if attempt > 1 and previous_scores:
                     improvement_hints = self._build_improvement_hints(previous_scores)
                     print(f"[ArticleService] Improvement hints:\n{improvement_hints}")
+                    verdict.processing_message = f"יוצר מאמר ({attempt}/{MAX_GENERATION_ATTEMPTS}) - משפר לפי משוב..."
+                    self.db.commit()
 
                 # Generate article content (pass hints to generator)
+                verdict.processing_message = f"יוצר מאמר ({attempt}/{MAX_GENERATION_ATTEMPTS}) - מחכה לתשובה מ-AI (1-3 דקות)..."
+                self.db.commit()
+
                 article_content = self.generator.generate(
                     {**verdict_metadata, **analysis_data},
                     improvement_hints=improvement_hints
                 )
+
+                verdict.processing_message = f"יוצר מאמר ({attempt}/{MAX_GENERATION_ATTEMPTS}) - בודק איכות..."
+                verdict.processing_progress = progress + 3
+                self.db.commit()
 
                 print(f"[ArticleService] Article generated, content_html length: {len(article_content.get('content_html', ''))}")
 
@@ -494,28 +503,31 @@ class ArticleService:
 
         if previous_scores["eeat_score"] < MIN_SCORE_THRESHOLD:
             hints.append(f"""
-### E-E-A-T (ציון קודם: {previous_scores['eeat_score']}) - יעד: 85+
+### E-E-A-T (ציון קודם: {previous_scores['eeat_score']}) - יעד: 85+ - קריטי!
 
-**CRITICAL - זה המדד הכי חשוב!**
+**הציון הנוכחי {previous_scores['eeat_score']} - חסר {MIN_SCORE_THRESHOLD - previous_scores['eeat_score']} נקודות!**
 
-**Expertise (מומחיות):**
-- **10-15 מונחים משפטיים** מקצועיים עם הסבר מיידי
-  דוגמה: "חובת זהירות (החובה המשפטית למנוע נזק)"
-- הפגן ידע מעמיק בתחום
+**Experience (ניסיון) - הוסף!**
+- דוגמאות מעשיות: "במקרים דומים שנדונו בבתי המשפט..."
+- תרחישים אמיתיים: "נניח מצב בו..."
+- מגמות: "בשנים האחרונות חלה מגמה של..."
 
-**Authoritativeness (סמכותיות - המפתח להצלחה!):**
-- **8-10 סעיפי חוק ספציפיים** עם מספרים מדויקים!
-  דוגמה: "סעיף 35 לחוק הנזיקין האזרחיים קובע..."
-- השתמש בביטויים סמכותיים:
-  "ההלכה הפסוקה קובעת", "על פי הפסיקה העקבית"
-- כתוב בטון מקצועי ובטוח
-- הוסף 2-3 לינקים ל-nevo.co.il או gov.il
+**Expertise (מומחיות) - הגדל!**
+- **15+ מונחים משפטיים** עם הסבר בסוגריים - ספור!
+- מונחים חובה: "נטל ההוכחה", "קשר סיבתי", "אחריות שילוחית", "עילת תביעה", "חובת זהירות"
+- הוסף ניתוח משפטי מעמיק - לא רק תיאור עובדות
 
-**Trustworthiness (מהימנות):**
-- בסס כל טענה על עובדות מפסק הדין
-- disclaimer מפורט בסוף
-- אל תמציא תקדימים או מספרי תיקים
-- אל תצטט "ע"א 123/45" או שמות פסקי דין
+**Authoritativeness (סמכותיות) - הכי חשוב!**
+- **10-12 סעיפי חוק** עם מספרים מדויקים - זה המפתח!
+- דוגמאות: "סעיף 35 לפקודת הנזיקין", "סעיף 41 לחוק חוזה הביטוח"
+- **8+ ביטויים סמכותיים שונים**: "ההלכה הפסוקה קובעת", "בתי המשפט קבעו באופן עקבי", "הדין קובע במפורש"
+- הימנע מ: "אולי", "יתכן", "ככל הנראה" - כתוב בטון בטוח!
+- **3-4 קישורים** ל-nevo.co.il, gov.il
+
+**Trustworthiness (אמינות):**
+- סעיף "חשוב לדעת" עם 3-4 נקודות
+- disclaimer מורחב (3 משפטים לפחות)
+- אל תמציא מספרי תיקים או תקדימים
 """)
 
         if previous_scores["readability_score"] < MIN_SCORE_THRESHOLD:
