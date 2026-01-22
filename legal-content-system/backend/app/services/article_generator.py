@@ -28,9 +28,31 @@ class ArticleGenerator:
     - All written as experienced Israeli lawyer
     """
 
+    # Valid practice areas for the law office
+    VALID_CATEGORIES = [
+        "ביטוח לאומי",
+        "תביעות ביטוח",
+        "נזקי גוף ורכוש",
+        "תאונות עבודה",
+        "רשלנות רפואית",
+        "תאונות דרכים",
+        "ליקויי בנייה",
+        "איחור במסירת דירה"
+    ]
+
     SYSTEM_PROMPT = """אתה עורך דין ישראלי מנוסה הכותב מאמרים משפטיים מקצועיים לאתר SEO.
 
 **חשוב מאוד:** המאמר חייב להתבסס על פסק הדין שיסופק לך - לא מאמר גנרי!
+
+## תחומי העיסוק של המשרד (חובה לבחור קטגוריה מהרשימה!):
+1. ביטוח לאומי - תביעות נכות, קצבאות, דמי פגיעה
+2. תביעות ביטוח - תביעות נגד חברות ביטוח, פוליסות, כיסוי ביטוחי
+3. נזקי גוף ורכוש - פיצויים על נזקי גוף, נזקי רכוש
+4. תאונות עבודה - תאונות במקום העבודה, מחלות מקצוע
+5. רשלנות רפואית - טעויות רפואיות, רשלנות בטיפול
+6. תאונות דרכים - תאונות רכב, נזקי גוף ומוות בתאונות דרכים
+7. ליקויי בנייה - ליקויים בדירות, תביעות נגד קבלנים
+8. איחור במסירת דירה - פיצויים על איחור במסירה
 
 ## דרישות תוכן:
 1. השתמש בעובדות, בנימוקים ובהחלטה מפסק הדין הספציפי
@@ -41,7 +63,7 @@ class ArticleGenerator:
 ## דרישות SEO:
 - אורך: 1800-2200 מילים (חובה!)
 - מבנה: H1 + 7 H2 + 5 H3
-- מילת מפתח: 10-15 הזכרות טבעיות (1-2% צפיפות)
+- מילת מפתח: 5-8 הזכרות טבעיות בלבד (0.5-1.5% צפיפות). חשוב: השתמש בווריאציות ומילים נרדפות!
 - FAQ: 8-10 שאלות רלוונטיות לפסק הדין הספציפי
 
 ## דרישות עיצוב:
@@ -52,8 +74,8 @@ class ArticleGenerator:
 
 ## E-E-A-T חובה:
 - מונחים משפטיים: השתמש ב-10+ מונחים (פיצויים, נזק, אחריות, רשלנות, סמכות, ערעור, פסק דין, בית משפט, תובע, נתבע, התיישנות, עדות)
-- disclaimer בסוף: "אין באמור לעיל משום ייעוץ משפטי. מומלץ להתייעץ עם עורך דין מומחה בתחום."
-- CTA בסוף: "לייעוץ משפטי בנושא, צרו קשר עם עורך דין מומחה."
+- disclaimer בסוף המאמר (חובה!): "<p><strong>אין באמור לעיל משום ייעוץ משפטי. מומלץ להתייעץ עם עורך דין מומחה בתחום.</strong></p>"
+- CTA בסוף המאמר (חובה!): "<p><strong>לייעוץ משפטי בנושא, צרו קשר עם משרדנו.</strong></p>"
 
 ## כותרת (title):
 - מקסימום 55 תווים
@@ -64,11 +86,18 @@ class ArticleGenerator:
 - 120-160 תווים בדיוק
 - חובה לכלול את מילת המפתח
 
+## category_primary (חובה!):
+בחר קטגוריה אחת בלבד מהרשימה: ביטוח לאומי, תביעות ביטוח, נזקי גוף ורכוש, תאונות עבודה, רשלנות רפואית, תאונות דרכים, ליקויי בנייה, איחור במסירת דירה
+
 ## איסורים:
 - אסור מספרי תיקים (ע"א/ת"א)
 - אסור שמות בעלי דין
 - אסור "משרדנו/לקוחותינו"
 - אסור "פסק דין חדשני/תקדימי/פורץ דרך"
+
+## שפה - חובה!
+כתוב אך ורק בעברית! אסור בהחלט להשתמש בתווים משפות אחרות (ערבית, רוסית, סינית וכו').
+תווים מותרים: אותיות עבריות, ספרות, סימני פיסוק בסיסיים, ותגיות HTML בלבד.
 
 החזר JSON בלבד:
 {"title", "meta_title", "meta_description", "content_html", "excerpt", "focus_keyword", "secondary_keywords", "faq_items", "external_links", "category_primary", "tags"}
@@ -265,7 +294,7 @@ class ArticleGenerator:
 - כותרת עד 55 תווים עם "{focus_keyword}"
 - meta_description: 120-160 תווים עם "{focus_keyword}"
 - "{focus_keyword}" בפסקה הראשונה
-- 10-15 הזכרות טבעיות של מילת המפתח
+- 5-8 הזכרות טבעיות בלבד של מילת המפתח (0.5-1.5% צפיפות). השתמש בווריאציות, מילים נרדפות וביטויים קשורים במקום לחזור על אותה מילה!
 
 ### קריאות:
 - משפטים קצרים (עד 25 מילים)
@@ -297,13 +326,249 @@ class ArticleGenerator:
 
         return result
 
+    def _detect_foreign_characters(self, text: str) -> Dict[str, Any]:
+        """
+        Detect foreign (non-Hebrew/Latin) characters in text.
+
+        Returns:
+            Dictionary with:
+            - has_foreign: bool - True if foreign characters detected
+            - foreign_chars: list - List of detected foreign characters
+            - foreign_scripts: list - Names of detected scripts (Arabic, Cyrillic, etc.)
+        """
+        if not text:
+            return {"has_foreign": False, "foreign_chars": [], "foreign_scripts": []}
+
+        foreign_chars = []
+        foreign_scripts = set()
+
+        # Define forbidden character ranges with script names
+        forbidden_ranges = [
+            (0x0600, 0x06FF, "Arabic"),
+            (0x0750, 0x077F, "Arabic Supplement"),
+            (0x08A0, 0x08FF, "Arabic Extended-A"),
+            (0x0400, 0x04FF, "Cyrillic"),
+            (0x0370, 0x03FF, "Greek"),
+            (0x0E00, 0x0E7F, "Thai"),
+            (0x4E00, 0x9FFF, "Chinese"),
+            (0x3040, 0x309F, "Japanese Hiragana"),
+            (0x30A0, 0x30FF, "Japanese Katakana"),
+            (0xAC00, 0xD7AF, "Korean"),
+            (0x0900, 0x097F, "Devanagari"),
+            (0x0980, 0x09FF, "Bengali"),
+        ]
+
+        for char in text:
+            code = ord(char)
+            for start, end, script_name in forbidden_ranges:
+                if start <= code <= end:
+                    foreign_chars.append(char)
+                    foreign_scripts.add(script_name)
+                    break
+
+        return {
+            "has_foreign": len(foreign_chars) > 0,
+            "foreign_chars": foreign_chars[:20],  # Limit to first 20
+            "foreign_scripts": list(foreign_scripts)
+        }
+
+    def _clean_hebrew_text(self, text: str) -> str:
+        """
+        Clean text to contain only valid Hebrew characters and allowed symbols.
+        Removes foreign/non-Hebrew characters (Arabic, etc.) that may have been introduced by AI.
+
+        Allowed characters:
+        - Hebrew letters (U+0590-U+05FF)
+        - Numbers (0-9)
+        - Basic punctuation (.,;:!?-"'())
+        - Whitespace
+        - HTML tags and attributes (a-zA-Z for tag names, =/"' for attributes)
+        """
+        if not text:
+            return text
+
+        # First, explicitly remove Arabic characters (U+0600-U+06FF) and other unwanted scripts
+        # Arabic, Arabic Supplement, Arabic Extended-A
+        text = re.sub(r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]', '', text)
+
+        # Remove other non-Latin/Hebrew scripts that might slip in
+        # Cyrillic, Greek, Thai, Chinese, Japanese, Korean, Devanagari, Bengali
+        text = re.sub(r'[\u0400-\u04FF\u0370-\u03FF\u0E00-\u0E7F\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF\u0900-\u097F\u0980-\u09FF]', '', text)
+
+        # Pattern to match characters we want to KEEP
+        # Hebrew, numbers, punctuation, whitespace, and characters needed for HTML
+        allowed_pattern = r'[\u0590-\u05FF0-9\s\.,;:!?\-\"\'\(\)\[\]<>/=a-zA-Z_#&%@\n\r\t\u00B0\u2013\u2014\u2018\u2019\u201C\u201D]+'
+
+        # Extract all allowed characters
+        cleaned_parts = re.findall(allowed_pattern, text)
+        return ''.join(cleaned_parts)
+
+    def _validate_hebrew_only(self, result: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Validate that all text fields contain only Hebrew/allowed characters.
+        Cleans any foreign characters found.
+
+        Returns:
+            Dictionary with validation results:
+            - passed: bool
+            - cleaned_fields: list of fields that were cleaned
+            - foreign_detected: dict of field -> detected foreign info
+        """
+        fields_to_check = ["content_html", "title", "meta_description", "excerpt", "meta_title"]
+        validation_result = {
+            "passed": True,
+            "cleaned_fields": [],
+            "foreign_detected": {}
+        }
+
+        for field in fields_to_check:
+            if field in result and result[field]:
+                detection = self._detect_foreign_characters(result[field])
+                if detection["has_foreign"]:
+                    validation_result["passed"] = False
+                    validation_result["foreign_detected"][field] = detection
+                    # Clean the field
+                    result[field] = self._clean_hebrew_text(result[field])
+                    validation_result["cleaned_fields"].append(field)
+                    print(f"[ArticleGenerator] WARNING: Foreign characters ({detection['foreign_scripts']}) detected and removed from {field}")
+
+        # Also check FAQ items
+        if "faq_items" in result:
+            for i, faq in enumerate(result.get("faq_items", [])):
+                for faq_field in ["question", "answer"]:
+                    if faq_field in faq and faq[faq_field]:
+                        detection = self._detect_foreign_characters(faq[faq_field])
+                        if detection["has_foreign"]:
+                            validation_result["passed"] = False
+                            field_name = f"faq_items[{i}].{faq_field}"
+                            validation_result["foreign_detected"][field_name] = detection
+                            faq[faq_field] = self._clean_hebrew_text(faq[faq_field])
+                            validation_result["cleaned_fields"].append(field_name)
+                            print(f"[ArticleGenerator] WARNING: Foreign characters removed from {field_name}")
+
+        return validation_result
+
+    def _validate_and_fix_category(self, result: Dict[str, Any], verdict_data: Dict[str, Any]) -> str:
+        """
+        Validate category_primary is in allowed list. Fix if needed.
+
+        Category mapping based on legal area keywords:
+        - ביטוח לאומי: נכות, קצבה, דמי פגיעה, ביטוח לאומי
+        - תביעות ביטוח: פוליסה, חברת ביטוח, כיסוי ביטוחי, תביעת ביטוח
+        - נזקי גוף ורכוש: נזק גוף, נזק רכוש, פיצויים, נזיקין
+        - תאונות עבודה: תאונת עבודה, מקום עבודה, מחלת מקצוע
+        - רשלנות רפואית: רשלנות רפואית, טעות רפואית, בית חולים, רופא
+        - תאונות דרכים: תאונת דרכים, תאונת רכב, נפגע דרכים
+        - ליקויי בנייה: ליקויי בנייה, ליקוי, קבלן, דירה חדשה
+        - איחור במסירת דירה: איחור במסירה, מסירת דירה, פיצוי איחור
+        """
+        category = result.get("category_primary", "")
+
+        # If category is valid, return it
+        if category in self.VALID_CATEGORIES:
+            print(f"[ArticleGenerator] Category valid: {category}")
+            return category
+
+        # Try to fix based on legal area or content keywords
+        legal_area = verdict_data.get("legal_area", "").lower()
+        content = result.get("content_html", "").lower()
+        title = result.get("title", "").lower()
+        all_text = f"{legal_area} {title} {content}"
+
+        # Keyword mapping to categories
+        category_keywords = {
+            "ביטוח לאומי": ["ביטוח לאומי", "נכות כללית", "דמי פגיעה", "קצבת נכות", "המוסד לביטוח לאומי"],
+            "תביעות ביטוח": ["פוליסת ביטוח", "חברת ביטוח", "כיסוי ביטוחי", "תביעת ביטוח", "מבטחת"],
+            "נזקי גוף ורכוש": ["נזק גוף", "נזקי גוף", "נזק רכוש", "נזיקין", "פיצויים"],
+            "תאונות עבודה": ["תאונת עבודה", "תאונות עבודה", "מקום העבודה", "מחלת מקצוע", "פגיעה בעבודה"],
+            "רשלנות רפואית": ["רשלנות רפואית", "טעות רפואית", "בית חולים", "טיפול רפואי", "רופא"],
+            "תאונות דרכים": ["תאונת דרכים", "תאונות דרכים", "נפגע דרכים", "תאונת רכב", "נהיגה"],
+            "ליקויי בנייה": ["ליקויי בנייה", "ליקוי בנייה", "קבלן", "דירה חדשה", "פגמים בדירה"],
+            "איחור במסירת דירה": ["איחור במסירה", "מסירת דירה", "איחור קבלן", "פיצוי איחור"]
+        }
+
+        # Find best matching category
+        best_match = None
+        best_score = 0
+
+        for cat, keywords in category_keywords.items():
+            score = sum(1 for kw in keywords if kw in all_text)
+            if score > best_score:
+                best_score = score
+                best_match = cat
+
+        if best_match and best_score > 0:
+            print(f"[ArticleGenerator] Category fixed: '{category}' -> '{best_match}' (score: {best_score})")
+            return best_match
+
+        # Default to most generic category
+        default_cat = "נזקי גוף ורכוש"
+        print(f"[ArticleGenerator] Category defaulted: '{category}' -> '{default_cat}'")
+        return default_cat
+
+    def _ensure_disclaimer_and_cta(self, content_html: str) -> str:
+        """
+        Ensure disclaimer and CTA exist at the end of article.
+        If missing, append them automatically.
+
+        This guarantees E-E-A-T score passes (80+).
+        """
+        text_lower = content_html.lower()
+
+        # Check for disclaimer keywords
+        disclaimer_keywords = ['אין באמור', 'אינו מהווה ייעוץ', 'יש להיוועץ',
+                              'מומלץ להתייעץ', 'אין לראות']
+        has_disclaimer = any(kw in text_lower for kw in disclaimer_keywords)
+
+        # Check for CTA keywords
+        cta_keywords = ['צרו קשר', 'פנו אלינו', 'התקשרו', 'לייעוץ', 'לפגישה']
+        has_cta = any(kw in text_lower for kw in cta_keywords)
+
+        # Append if missing
+        if not has_disclaimer:
+            disclaimer = '<h2>כתב ויתור</h2><p><strong>אין באמור לעיל משום ייעוץ משפטי. מומלץ להתייעץ עם עורך דין מומחה בתחום.</strong></p>'
+            content_html += f'\n{disclaimer}'
+            print(f"[ArticleGenerator] Added missing disclaimer")
+
+        if not has_cta:
+            cta = '<h2>צור קשר</h2><p><strong>לייעוץ משפטי מקצועי בנושא, צרו קשר עם משרדנו.</strong></p>'
+            content_html += f'\n{cta}'
+            print(f"[ArticleGenerator] Added missing CTA")
+
+        return content_html
+
     def _validate_and_enrich(self, result: Dict[str, Any], verdict_data: Dict[str, Any]) -> Dict[str, Any]:
         """Validate and enrich the article data."""
+        # CRITICAL: Validate Hebrew-only content and clean any foreign characters
+        hebrew_validation = self._validate_hebrew_only(result)
+        if not hebrew_validation["passed"]:
+            print(f"[ArticleGenerator] Hebrew validation FAILED - cleaned {len(hebrew_validation['cleaned_fields'])} fields")
+            print(f"[ArticleGenerator] Foreign scripts detected: {set(s for d in hebrew_validation['foreign_detected'].values() for s in d.get('foreign_scripts', []))}")
+
+        # Additional cleaning pass for safety (belt and suspenders)
+        if "content_html" in result:
+            result["content_html"] = self._clean_hebrew_text(result["content_html"])
+        if "title" in result:
+            result["title"] = self._clean_hebrew_text(result["title"])
+        if "meta_description" in result:
+            result["meta_description"] = self._clean_hebrew_text(result["meta_description"])
+        if "excerpt" in result:
+            result["excerpt"] = self._clean_hebrew_text(result["excerpt"])
+        if "meta_title" in result:
+            result["meta_title"] = self._clean_hebrew_text(result["meta_title"])
+
+        # ENSURE DISCLAIMER AND CTA (for E-E-A-T score 80+)
+        if "content_html" in result:
+            result["content_html"] = self._ensure_disclaimer_and_cta(result["content_html"])
+
         # Calculate word count from HTML
         if "content_html" in result:
             text = re.sub(r'<[^>]+>', '', result["content_html"])
             result["word_count"] = len(text.split())
             result["reading_time_minutes"] = max(1, result["word_count"] // 200)
+
+        # Validate and fix category to match law office practice areas
+        result["category_primary"] = self._validate_and_fix_category(result, verdict_data)
 
         # Generate Schema.org JSON-LD
         result["schema_article"] = self._generate_article_schema(result, verdict_data)
@@ -323,7 +588,7 @@ class ArticleGenerator:
             "reading_time_minutes": 0,
             "faq_items": [],
             "common_mistakes": [],
-            "category_primary": verdict_data.get("legal_area", "משפטי"),
+            "category_primary": "נזקי גוף ורכוש",  # Default to most common category
             "tags": [],
             "featured_image_prompt": "",
             "featured_image_alt": "",

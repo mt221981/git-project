@@ -9,21 +9,30 @@ class LinkEnhancementService:
     """Service to enhance articles with internal and external links."""
 
     # Internal link mapping: term -> URL slug
+    # IMPORTANT: This system handles ONLY tort law (נזיקין) and insurance (ביטוח)
+    # DO NOT add links for family law, divorce, criminal, or other unrelated areas
     INTERNAL_LINKS = {
+        # Core tort/insurance terms
+        "נזיקין": "/נזיקין",
+        "נזקים": "/נזיקין",
+        "נזק גוף": "/נזק-גוף",
+        "פיצויים": "/פיצויים",
+        "תביעת פיצויים": "/פיצויים",
+        "רשלנות": "/רשלנות",
+        # Insurance
+        "ביטוח": "/ביטוח",
+        "ביטוח רכב": "/ביטוח-רכב",
+        "פוליסת ביטוח": "/ביטוח",
+        "תגמולי ביטוח": "/ביטוח",
+        # Accidents
         "תאונות דרכים": "/תאונות-דרכים",
         "תאונת דרכים": "/תאונות-דרכים",
         "תאונה": "/תאונות-דרכים",
-        "נזיקין": "/נזיקין",
-        "נזקים": "/נזיקין",
-        "פיצויים": "/פיצויים",
-        "רשלנות": "/רשלנות",
-        "ביטוח רכב": "/ביטוח-רכב",
-        "דיני עבודה": "/דיני-עבודה",
-        "פיטורים": "/פיטורים",
-        "משפחה": "/דיני-משפחה",
-        "גירושין": "/גירושין",
-        "מזונות": "/מזונות",
-        "נכסים": "/חלוקת-נכסים",
+        "תאונת עבודה": "/תאונות-עבודה",
+        # Medical
+        "רשלנות רפואית": "/רשלנות-רפואית",
+        # Property
+        "נזקי רכוש": "/נזקי-רכוש",
     }
 
     # External link patterns: (pattern, URL, title)

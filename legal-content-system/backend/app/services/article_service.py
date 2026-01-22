@@ -245,7 +245,7 @@ class ArticleService:
             }
 
             # Quality control retry loop
-            MAX_GENERATION_ATTEMPTS = 3  # Allow more retries for 80+ quality threshold
+            MAX_GENERATION_ATTEMPTS = 3  # Allow retries for quality improvement
             MIN_SCORE_THRESHOLD = 80  # High quality threshold - all metrics must reach 80+
             previous_scores = None
 
@@ -405,6 +405,20 @@ class ArticleService:
             )
 
             self.db.add(article)
+            self.db.commit()
+            self.db.refresh(article)
+
+            # Fetch featured image from Pexels
+            verdict.processing_progress = 92
+            verdict.processing_message = "מחפש תמונה ראשית מתאימה..."
+            self.db.commit()
+
+            try:
+                self._fetch_featured_image(article, verdict.legal_area)
+                self.db.commit()
+            except Exception as e:
+                print(f"[ArticleService] Featured image fetch failed: {e}")
+                # Continue without image - not critical
 
             # Update verdict status
             verdict.status = VerdictStatus.ARTICLE_CREATED
@@ -489,6 +503,106 @@ class ArticleService:
             parts.append(f"פיצוי: {verdict.compensation_amount:,.0f} ש\"ח")
 
         return " | ".join(parts) if parts else ""
+
+    def _fetch_featured_image(self, article: Article, legal_area: str = None) -> None:
+        """
+        Fetch featured image from Pexels based on article prompt.
+
+        Args:
+            article: Article to update with image
+            legal_area: Legal area for category-specific search
+        """
+        import os
+        if not os.getenv("PEXELS_API_KEY"):
+            print("[ArticleService] PEXELS_API_KEY not set - skipping featured image")
+            return
+
+        # Generate default prompt if none provided
+        prompt = article.featured_image_prompt
+        if not prompt:
+            prompt = self._get_default_image_prompt(legal_area, article.title)
+            article.featured_image_prompt = prompt
+            print(f"[ArticleService] Generated default image prompt: {prompt[:50]}...")
+
+        try:
+            from app.services.image_service import PexelsImageService, ImageServiceError
+
+            image_service = PexelsImageService()
+
+            image_url, credit, metadata = image_service.get_featured_image(
+                prompt=prompt,
+                legal_area=legal_area,
+                preferred_size="large"
+            )
+
+            if image_url:
+                article.featured_image_url = image_url
+                article.featured_image_credit = credit
+                print(f"[ArticleService] Featured image found: {image_url[:60]}...")
+            else:
+                print("[ArticleService] No suitable image found")
+
+        except Exception as e:
+            print(f"[ArticleService] Image fetch error: {e}")
+
+    def _get_default_image_prompt(self, legal_area: str, title: str) -> str:
+        """Generate a default image prompt based on legal area and title.
+
+        IMPORTANT: This system handles ONLY tort law (נזיקין) and insurance (ביטוח).
+        All prompts should relate to these areas - NOT family law, divorce, criminal, etc.
+        """
+        prompts = {
+            # Core tort/insurance
+            "nziqin": "law office gavel scales justice court legal compensation",
+            "bituah": "insurance policy document claim settlement legal",
+            "pizuyim": "compensation settlement court gavel legal money",
+            # Accidents
+            "taavura": "car accident damage vehicle traffic collision",
+            "teuna": "car accident damage vehicle road crash",
+            "teunat_avoda": "workplace safety equipment injury protection",
+            # Medical
+            "refui": "stethoscope medical records hospital healthcare",
+            "rashlanut_refuit": "medical records hospital doctor stethoscope",
+            # Property
+            "rekhush": "property damage insurance home building",
+            "nzqei_rekhush": "property damage flood fire house insurance",
+            # General legal (still tort themed)
+            "mishpat_ezrahi": "courtroom judge gavel legal documents justice",
+        }
+
+        # Try to match legal area
+        if legal_area:
+            legal_lower = legal_area.lower()
+            if "nzq" in legal_lower or "nzikin" in legal_lower or "נזיקין" in legal_area:
+                return prompts["nziqin"]
+            if "bituah" in legal_lower or "ביטוח" in legal_area:
+                return prompts["bituah"]
+            if "pizuy" in legal_lower or "פיצוי" in legal_area:
+                return prompts["pizuyim"]
+            if "refui" in legal_lower or "רפואי" in legal_area or "rashlanut" in legal_lower:
+                return prompts["refui"]
+            if "taavura" in legal_lower or "teuna" in legal_lower or "תאונה" in legal_area:
+                return prompts["taavura"]
+            if "rekhush" in legal_lower or "רכוש" in legal_area:
+                return prompts["rekhush"]
+
+        # Check title for hints (Hebrew)
+        title_check = title.lower() if title else ""
+        if "נזק" in title or "פיצוי" in title or "nzq" in title_check:
+            return prompts["nziqin"]
+        if "ביטוח" in title or "bituah" in title_check:
+            return prompts["bituah"]
+        if "תאונה" in title or "teuna" in title_check or "taavura" in title_check:
+            return prompts["taavura"]
+        if "רפואי" in title or "רשלנות" in title:
+            return prompts["refui"]
+        if "teuna" in title_lower:
+            return prompts["taavura"]
+        if "hashkaa" in title_lower or "hskaa" in title_lower:
+            return "investment business finance money contract agreement"
+
+        # Default legal image
+        return "law office legal books gavel justice court attorney"
 
     def _build_improvement_hints(self, previous_scores: dict) -> str:
         """Build concise improvement hints based on previous scores."""

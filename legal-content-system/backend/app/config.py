@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     ALLOWED_FILE_EXTENSIONS: list[str] = [".pdf", ".txt", ".doc", ".docx"]
 
     # Processing
-    MAX_CONCURRENT_PROCESSING: int = 3
+    MAX_CONCURRENT_PROCESSING: int = 6
 
     model_config = SettingsConfigDict(
         env_file=".env",

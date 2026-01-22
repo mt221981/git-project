@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime
 from typing import Optional
 import threading
+from loguru import logger
 
 from app.database import SessionLocal
 from app.models.batch import Batch, BatchStatus
@@ -11,6 +12,7 @@ from app.models.verdict import Verdict, VerdictStatus
 from app.services.batch_service import BatchService
 from app.services.analysis_service import AnalysisService
 from app.services.article_service import ArticleService
+from app.config import settings
 
 
 class BatchWorker:
@@ -38,7 +40,7 @@ class BatchWorker:
             return
 
         self.is_running = False
-        self.max_concurrent = 3
+        self.max_concurrent = settings.MAX_CONCURRENT_PROCESSING
         self.poll_interval = 5  # seconds
         self._task = None
         self._semaphore = None
@@ -47,12 +49,12 @@ class BatchWorker:
     async def start(self):
         """Start the worker."""
         if self.is_running:
-            print("[BatchWorker] Worker is already running")
+            logger.info("[BatchWorker] Worker is already running")
             return
 
         self.is_running = True
         self._semaphore = asyncio.Semaphore(self.max_concurrent)
-        print(f"[BatchWorker] Starting worker with max {self.max_concurrent} concurrent tasks")
+        logger.info(f"[BatchWorker] Starting worker with max {self.max_concurrent} concurrent tasks")
 
         self._task = asyncio.create_task(self._worker_loop())
 
@@ -61,7 +63,7 @@ class BatchWorker:
         if not self.is_running:
             return
 
-        print("[BatchWorker] Stopping worker...")
+        logger.info("[BatchWorker] Stopping worker...")
         self.is_running = False
 
         if self._task:
@@ -71,7 +73,7 @@ class BatchWorker:
             except asyncio.CancelledError:
                 pass
 
-        print("[BatchWorker] Worker stopped")
+        logger.info("[BatchWorker] Worker stopped")
 
     async def _worker_loop(self):
         """Main worker loop."""
@@ -89,7 +91,7 @@ class BatchWorker:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                print(f"[BatchWorker] Error in worker loop: {e}")
+                logger.error(f"[BatchWorker] Error in worker loop: {e}", exc_info=True)
                 await asyncio.sleep(self.poll_interval)
 
     async def _process_pending_verdicts(self):
@@ -132,11 +134,11 @@ class BatchWorker:
         """
         db = SessionLocal()
         try:
-            print(f"[BatchWorker] Processing verdict {verdict_id} from batch {batch_id}")
+            logger.info(f"[BatchWorker] Processing verdict {verdict_id} from batch {batch_id}")
 
             verdict = db.query(Verdict).filter(Verdict.id == verdict_id).first()
             if not verdict:
-                print(f"[BatchWorker] Verdict {verdict_id} not found")
+                logger.warning(f"[BatchWorker] Verdict {verdict_id} not found")
                 return
 
             # Update status to analyzing
@@ -150,7 +152,7 @@ class BatchWorker:
                 analysis_service = AnalysisService(db)
                 analysis_service.analyze_verdict(verdict_id)
             except Exception as e:
-                print(f"[BatchWorker] Analysis failed for verdict {verdict_id}: {e}")
+                logger.error(f"[BatchWorker] Analysis failed for verdict {verdict_id}: {e}", exc_info=True)
                 verdict = db.query(Verdict).filter(Verdict.id == verdict_id).first()
                 if verdict:
                     verdict.status = VerdictStatus.FAILED
@@ -167,7 +169,7 @@ class BatchWorker:
                 article_service = ArticleService(db)
                 article_service.generate_article_from_verdict(verdict_id)
             except Exception as e:
-                print(f"[BatchWorker] Article generation failed for verdict {verdict_id}: {e}")
+                logger.error(f"[BatchWorker] Article generation failed for verdict {verdict_id}: {e}", exc_info=True)
                 verdict = db.query(Verdict).filter(Verdict.id == verdict_id).first()
                 if verdict:
                     verdict.status = VerdictStatus.FAILED
@@ -179,20 +181,20 @@ class BatchWorker:
                 batch_service.update_batch_progress(batch_id, success=False, error=str(e))
                 return
 
-            print(f"[BatchWorker] Successfully processed verdict {verdict_id}")
+            logger.success(f"[BatchWorker] Successfully processed verdict {verdict_id}")
 
             # Update batch progress with success
             batch_service = BatchService(db)
             batch_service.update_batch_progress(batch_id, success=True)
 
         except Exception as e:
-            print(f"[BatchWorker] Error processing verdict {verdict_id}: {e}")
+            logger.error(f"[BatchWorker] Error processing verdict {verdict_id}: {e}", exc_info=True)
             # Try to update batch progress
             try:
                 batch_service = BatchService(db)
                 batch_service.update_batch_progress(batch_id, success=False, error=str(e))
-            except:
-                pass
+            except Exception as batch_err:
+                logger.warning(f"[BatchWorker] Failed to update batch progress: {batch_err}")
         finally:
             db.close()
 
@@ -220,7 +222,7 @@ class BatchWorker:
                     # All verdicts processed
                     batch.status = BatchStatus.COMPLETED
                     batch.completed_at = datetime.utcnow()
-                    print(f"[BatchWorker] Batch {batch.id} completed")
+                    logger.success(f"[BatchWorker] Batch {batch.id} completed")
 
             db.commit()
 

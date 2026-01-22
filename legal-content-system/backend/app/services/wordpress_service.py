@@ -1,6 +1,8 @@
 """WordPress publishing service."""
 
-from typing import Dict, Any, List, Optional
+import os
+import re
+from typing import Dict, Any, List, Optional, Tuple
 from sqlalchemy.orm import Session
 from datetime import datetime
 
@@ -8,6 +10,11 @@ from app.models.wordpress_site import WordPressSite, SEOPlugin
 from app.models.article import Article, PublishStatus
 from app.utils.encryption import encrypt_text, decrypt_text
 from app.services.wordpress_client import WordPressClient, WordPressClientError
+
+
+class ContentValidationError(Exception):
+    """Exception raised when content validation fails."""
+    pass
 
 
 class WordPressService:
@@ -252,6 +259,16 @@ class WordPressService:
         if not article:
             raise ValueError(f"Article with ID {article_id} not found")
 
+        # PRE-PUBLISH VALIDATION: Check for foreign characters
+        validation_result = self._validate_content_before_publish(article)
+        if not validation_result["passed"]:
+            print(f"[WordPress] Content validation FAILED for article {article_id}")
+            print(f"[WordPress] Foreign characters detected: {validation_result['details']}")
+            # Clean the content and update the article in DB
+            self._clean_article_content(article)
+            self.db.commit()
+            print(f"[WordPress] Content cleaned and saved to database")
+
         # Get site
         site = self.get_site(site_id)
         if not site:
@@ -282,6 +299,13 @@ class WordPressService:
         if tag_names:
             tag_ids = client.get_or_create_tags(tag_names)
 
+        # Prepare content with author byline if available
+        content_with_author = article.content_html
+        if article.author_name:
+            # Add author byline at the beginning of the content
+            author_byline = f'<p class="article-author" style="font-weight: bold; color: #333; margin-bottom: 20px;">מאת: {article.author_name}</p>'
+            content_with_author = author_byline + article.content_html
+
         try:
             # Create or update post
             if article.wordpress_post_id:
@@ -289,7 +313,7 @@ class WordPressService:
                 post_data = client.update_post(
                     post_id=article.wordpress_post_id,
                     title=article.title,
-                    content=article.content_html,
+                    content=content_with_author,
                     status=status,
                     excerpt=article.excerpt,
                     categories=category_ids if category_ids else None,
@@ -299,13 +323,42 @@ class WordPressService:
                 # Create new post
                 post_data = client.create_post(
                     title=article.title,
-                    content=article.content_html,
+                    content=content_with_author,
                     status=status,
                     excerpt=article.excerpt,
                     categories=category_ids if category_ids else None,
                     tags=tag_ids if tag_ids else None,
                     author=author_id
                 )
+
+            # Upload featured image if available
+            if article.featured_image_url and not article.featured_image_wp_id:
+                try:
+                    print(f"[WordPress] Uploading featured image for article {article.id}")
+                    media_id = self.upload_featured_image(
+                        client=client,
+                        article=article
+                    )
+                    if media_id:
+                        # Set featured image on post
+                        client.set_featured_image(post_data["id"], media_id)
+                        article.featured_image_wp_id = media_id
+                        # Commit immediately to persist the media ID
+                        self.db.commit()
+                        print(f"[WordPress] Featured image set and saved: Media ID {media_id}")
+                except Exception as e:
+                    print(f"[WordPress] Featured image upload failed: {e}")
+                    # Continue without featured image - not critical
+
+            # Set author name as custom meta field
+            if article.author_name:
+                try:
+                    print(f"[WordPress] Setting author meta: {article.author_name}")
+                    client.update_post_meta(post_data["id"], "article_author", article.author_name)
+                    print(f"[WordPress] Author meta set successfully")
+                except Exception as e:
+                    print(f"[WordPress] Author meta update failed: {e}")
+                    # Continue without author meta - not critical
 
             # Update SEO plugin fields if applicable
             if site.seo_plugin == SEOPlugin.YOAST:
@@ -398,3 +451,185 @@ class WordPressService:
 
         except WordPressClientError as e:
             raise WordPressClientError(f"Failed to unpublish article: {str(e)}")
+
+    def upload_featured_image(
+        self,
+        client: WordPressClient,
+        article: Article
+    ) -> Optional[int]:
+        """
+        Upload featured image to WordPress and return media ID.
+
+        Args:
+            client: WordPress client
+            article: Article with featured_image_url
+
+        Returns:
+            Media ID if successful, None otherwise
+        """
+        if not article.featured_image_url:
+            return None
+
+        try:
+            # Import image service to download image
+            from app.services.image_service import PexelsImageService, ImageServiceError
+            import requests
+
+            # Download image from URL
+            print(f"[WordPress] Downloading image from {article.featured_image_url[:50]}...")
+            response = requests.get(article.featured_image_url, timeout=30)
+            response.raise_for_status()
+
+            # Determine content type and filename
+            content_type = response.headers.get("Content-Type", "image/jpeg")
+            extension = ".jpg"
+            if "png" in content_type:
+                extension = ".png"
+            elif "webp" in content_type:
+                extension = ".webp"
+
+            # Generate filename from article slug
+            filename = f"{article.slug[:50]}-featured{extension}"
+
+            # Build caption with credit
+            caption = article.featured_image_alt or ""
+            if article.featured_image_credit:
+                caption = f"{caption} | {article.featured_image_credit}" if caption else article.featured_image_credit
+
+            # Upload to WordPress
+            media_data = client.upload_media(
+                file_content=response.content,
+                filename=filename,
+                content_type=content_type,
+                alt_text=article.featured_image_alt,
+                caption=caption,
+                title=article.title[:100]
+            )
+
+            return media_data.get("id")
+
+        except Exception as e:
+            print(f"[WordPress] Featured image upload error: {e}")
+            return None
+
+    def _detect_foreign_characters(self, text: str) -> Dict[str, Any]:
+        """
+        Detect foreign (non-Hebrew/Latin) characters in text.
+        This is a pre-publish validation gate to catch any foreign characters.
+
+        Returns:
+            Dictionary with detection results
+        """
+        if not text:
+            return {"has_foreign": False, "chars": [], "scripts": []}
+
+        foreign_chars = []
+        foreign_scripts = set()
+
+        # Define forbidden character ranges
+        forbidden_ranges = [
+            (0x0600, 0x06FF, "Arabic"),
+            (0x0750, 0x077F, "Arabic Supplement"),
+            (0x08A0, 0x08FF, "Arabic Extended-A"),
+            (0x0400, 0x04FF, "Cyrillic"),
+            (0x0370, 0x03FF, "Greek"),
+            (0x0E00, 0x0E7F, "Thai"),
+            (0x4E00, 0x9FFF, "Chinese"),
+            (0x3040, 0x309F, "Japanese Hiragana"),
+            (0x30A0, 0x30FF, "Japanese Katakana"),
+            (0xAC00, 0xD7AF, "Korean"),
+            (0x0900, 0x097F, "Devanagari"),
+            (0x0980, 0x09FF, "Bengali"),
+        ]
+
+        for char in text:
+            code = ord(char)
+            for start, end, script_name in forbidden_ranges:
+                if start <= code <= end:
+                    foreign_chars.append(char)
+                    foreign_scripts.add(script_name)
+                    break
+
+        return {
+            "has_foreign": len(foreign_chars) > 0,
+            "chars": foreign_chars[:10],
+            "scripts": list(foreign_scripts)
+        }
+
+    def _clean_text_hebrew_only(self, text: str) -> str:
+        """
+        Clean text to contain only Hebrew, Latin (for HTML), numbers, and punctuation.
+        """
+        if not text:
+            return text
+
+        # Remove Arabic and other foreign scripts
+        text = re.sub(r'[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF]', '', text)
+        text = re.sub(r'[\u0400-\u04FF\u0370-\u03FF\u0E00-\u0E7F\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF\uAC00-\uD7AF\u0900-\u097F\u0980-\u09FF]', '', text)
+
+        # Keep only allowed characters
+        allowed_pattern = r'[\u0590-\u05FF0-9\s\.,;:!?\-\"\'\(\)\[\]<>/=a-zA-Z_#&%@\n\r\t\u00B0\u2013\u2014\u2018\u2019\u201C\u201D]+'
+        cleaned_parts = re.findall(allowed_pattern, text)
+        return ''.join(cleaned_parts)
+
+    def _validate_content_before_publish(self, article: Article) -> Dict[str, Any]:
+        """
+        Validate article content before publishing to WordPress.
+        This is the final gate to ensure no foreign characters slip through.
+
+        Returns:
+            Dictionary with validation result
+        """
+        fields_to_check = [
+            ("title", article.title),
+            ("content_html", article.content_html),
+            ("meta_description", article.meta_description),
+            ("excerpt", article.excerpt),
+            ("meta_title", article.meta_title),
+        ]
+
+        all_foreign = []
+        all_scripts = set()
+
+        for field_name, field_value in fields_to_check:
+            if field_value:
+                result = self._detect_foreign_characters(field_value)
+                if result["has_foreign"]:
+                    all_foreign.append({
+                        "field": field_name,
+                        "chars": result["chars"],
+                        "scripts": result["scripts"]
+                    })
+                    all_scripts.update(result["scripts"])
+
+        passed = len(all_foreign) == 0
+
+        if not passed:
+            print(f"[WordPress] PRE-PUBLISH VALIDATION FAILED!")
+            print(f"[WordPress] Foreign scripts detected: {list(all_scripts)}")
+            for item in all_foreign:
+                print(f"[WordPress]   - Field '{item['field']}': {item['scripts']}")
+
+        return {
+            "passed": passed,
+            "details": all_foreign,
+            "scripts": list(all_scripts)
+        }
+
+    def _clean_article_content(self, article: Article) -> None:
+        """
+        Clean all text fields in an article to remove foreign characters.
+        Modifies the article object in place.
+        """
+        if article.title:
+            article.title = self._clean_text_hebrew_only(article.title)
+        if article.content_html:
+            article.content_html = self._clean_text_hebrew_only(article.content_html)
+        if article.meta_description:
+            article.meta_description = self._clean_text_hebrew_only(article.meta_description)
+        if article.excerpt:
+            article.excerpt = self._clean_text_hebrew_only(article.excerpt)
+        if article.meta_title:
+            article.meta_title = self._clean_text_hebrew_only(article.meta_title)
+
+        print(f"[WordPress] Article {article.id} content cleaned")

@@ -48,7 +48,8 @@
       "Bash(if exist \"test_full_agent_workflow.py\" del \"test_full_agent_workflow.py\")",
       "Bash(if [ -f \"c:tempverdict6.json\" ])",
       "Bash(then rm -f \"c:tempverdict6.json\")",
-      "Bash(fi)"
+      "Bash(fi)",
+      "Bash(if exist nul del /F nul)"
     ]
   }
 }

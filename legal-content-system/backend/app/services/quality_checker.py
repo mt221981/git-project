@@ -316,13 +316,13 @@ class QualityChecker:
             severity="warning" if not keyword_in_first_p else "info"
         ))
 
-        # Keyword density (aim for 1-2%)
+        # Keyword density (aim for 0.5-1.5% to avoid keyword stuffing)
         content_text = re.sub(r'<[^>]+>', '', content).lower()
         word_count = len(content_text.split())
         if focus_keyword and word_count > 0:
             keyword_count = content_text.count(focus_keyword.lower())
             density = (keyword_count / word_count) * 100
-            density_passed = 0.5 <= density <= 2.5
+            density_passed = 0.5 <= density <= 1.5
             density_score = 100 if density_passed else (50 if density > 0 else 0)
         else:
             density = 0
@@ -332,7 +332,7 @@ class QualityChecker:
             name="keyword_density",
             passed=density_passed,
             score=density_score,
-            message=f"Keyword density: {density:.1f}% (0.5-2.5% recommended)",
+            message=f"Keyword density: {density:.1f}% (0.5-1.5% recommended)",
             category="seo",
             severity="info"
         ))

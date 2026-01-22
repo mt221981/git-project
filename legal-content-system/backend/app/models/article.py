@@ -60,6 +60,9 @@ class Article(Base):
     # Featured image
     featured_image_prompt = Column(Text)
     featured_image_alt = Column(String(200))
+    featured_image_url = Column(String(500))  # URL of fetched image
+    featured_image_wp_id = Column(Integer)    # WordPress Media Library ID
+    featured_image_credit = Column(String(200))  # Photographer credit (Pexels attribution)
 
     # Author
     author_name = Column(String(100), default="עו\"ד משה טייב")
